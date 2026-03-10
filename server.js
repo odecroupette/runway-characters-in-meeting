@@ -1,5 +1,7 @@
 import "dotenv/config";
 import express from "express";
+import { createServer } from "http";
+import { WebSocketServer } from "ws";
 import { randomUUID } from "crypto";
 
 const app = express();
@@ -12,17 +14,23 @@ const {
   PORT = "3000",
 } = process.env;
 
-// PUBLIC_URL: explicit env var > Railway auto-domain > localhost fallback
 const PUBLIC_URL =
   process.env.PUBLIC_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN
     ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
     : `http://localhost:${PORT}`);
 
+const WS_PUBLIC_URL = PUBLIC_URL.replace(/^https/, "wss").replace(
+  /^http/,
+  "ws"
+);
+
 const RECALL_BASE = `https://${RECALL_REGION}.recall.ai/api/v1`;
 
 // In-memory session store
 const sessions = new Map();
+// WebSocket clients: sessionId → Set of bot page WebSocket connections
+const videoRelayClients = new Map();
 
 // ---------------------------------------------------------------------------
 // Runway API helpers (per-user credentials)
@@ -76,7 +84,7 @@ async function recallFetch(path, { method = "GET", body } = {}) {
   return data;
 }
 
-async function createRecallBot(meetingUrl, botName, botPageUrl) {
+async function createRecallBot(meetingUrl, botName, botPageUrl, sessionId) {
   return recallFetch("/bot/", {
     method: "POST",
     body: {
@@ -92,6 +100,17 @@ async function createRecallBot(meetingUrl, botName, botPageUrl) {
         zoom: "web_4_core",
         google_meet: "web_4_core",
         microsoft_teams: "web_4_core",
+      },
+      recording_config: {
+        video_mixed_layout: "gallery_view_v2",
+        video_separate_png: {},
+        realtime_endpoints: [
+          {
+            type: "websocket",
+            url: `${WS_PUBLIC_URL}/ws/recall-video/${sessionId}`,
+            events: ["video_separate_png.data"],
+          },
+        ],
       },
     },
   });
@@ -122,7 +141,6 @@ function getRunwayCreds(req) {
 // Routes
 // ---------------------------------------------------------------------------
 
-// List Runway avatars (uses per-user key)
 app.get("/api/avatars", async (req, res) => {
   try {
     const { apiKey, baseUrl } = getRunwayCreds(req);
@@ -134,7 +152,6 @@ app.get("/api/avatars", async (req, res) => {
   }
 });
 
-// Start a session (async, returns immediately)
 app.post("/api/start", (req, res) => {
   let runway;
   try {
@@ -173,7 +190,6 @@ app.post("/api/start", (req, res) => {
   res.json({ sessionId: id });
 });
 
-// Get session status (polled by the control panel)
 app.get("/api/sessions/:id", (req, res) => {
   const session = sessions.get(req.params.id);
   if (!session) return res.status(404).json({ error: "Session not found" });
@@ -186,7 +202,6 @@ app.get("/api/sessions/:id", (req, res) => {
   });
 });
 
-// Get LiveKit creds (called by the bot page)
 app.get("/api/sessions/:id/creds", (req, res) => {
   const session = sessions.get(req.params.id);
   if (!session) return res.status(404).json({ error: "Session not found" });
@@ -195,7 +210,6 @@ app.get("/api/sessions/:id/creds", (req, res) => {
   res.json(session.liveKit);
 });
 
-// Stop a session
 app.post("/api/sessions/:id/stop", async (req, res) => {
   const session = sessions.get(req.params.id);
   if (!session) return res.status(404).json({ error: "Session not found" });
@@ -203,6 +217,91 @@ app.post("/api/sessions/:id/stop", async (req, res) => {
   await stopSession(session);
   res.json({ ok: true });
 });
+
+// ---------------------------------------------------------------------------
+// WebSocket server for video relay
+// ---------------------------------------------------------------------------
+
+const httpServer = createServer(app);
+const wss = new WebSocketServer({ noServer: true });
+
+httpServer.on("upgrade", (request, socket, head) => {
+  const url = new URL(request.url, `http://${request.headers.host}`);
+  const pathname = url.pathname;
+
+  // Route: /ws/recall-video/:sessionId  — Recall sends video frames here
+  // Route: /ws/video-relay/:sessionId   — Bot page connects here to receive
+  const recallMatch = pathname.match(/^\/ws\/recall-video\/([^/]+)$/);
+  const relayMatch = pathname.match(/^\/ws\/video-relay\/([^/]+)$/);
+
+  if (recallMatch || relayMatch) {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      if (recallMatch) {
+        handleRecallVideoConnection(ws, recallMatch[1]);
+      } else {
+        handleVideoRelayConnection(ws, relayMatch[1]);
+      }
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+function handleRecallVideoConnection(ws, sessionId) {
+  console.log(`[ws] Recall video connected for session ${sessionId.slice(0, 8)}`);
+
+  ws.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data.toString());
+      if (msg.event !== "video_separate_png.data") return;
+
+      const frame = msg.data?.data;
+      if (!frame?.buffer) return;
+
+      // Forward to all connected bot page clients for this session
+      const relay = {
+        participantId: frame.participant?.id,
+        participantName: frame.participant?.name,
+        type: frame.type,
+        buffer: frame.buffer,
+      };
+      const relayStr = JSON.stringify(relay);
+
+      const clients = videoRelayClients.get(sessionId);
+      if (clients) {
+        for (const client of clients) {
+          if (client.readyState === 1) {
+            client.send(relayStr);
+          }
+        }
+      }
+    } catch {
+      // ignore malformed messages
+    }
+  });
+
+  ws.on("close", () => {
+    console.log(`[ws] Recall video disconnected for session ${sessionId.slice(0, 8)}`);
+  });
+}
+
+function handleVideoRelayConnection(ws, sessionId) {
+  console.log(`[ws] Bot page video relay connected for session ${sessionId.slice(0, 8)}`);
+
+  if (!videoRelayClients.has(sessionId)) {
+    videoRelayClients.set(sessionId, new Set());
+  }
+  videoRelayClients.get(sessionId).add(ws);
+
+  ws.on("close", () => {
+    const clients = videoRelayClients.get(sessionId);
+    if (clients) {
+      clients.delete(ws);
+      if (clients.size === 0) videoRelayClients.delete(sessionId);
+    }
+    console.log(`[ws] Bot page video relay disconnected for session ${sessionId.slice(0, 8)}`);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Session pipeline
@@ -224,16 +323,23 @@ async function runSessionPipeline(
   };
 
   try {
-    // 1. Create Runway session
     log("Creating Runway realtime session...");
-    const created = await runwayFetch(baseUrl, apiKey, "/v1/realtime_sessions", {
-      method: "POST",
-      body: { model: "gwm1_avatars", avatar, maxDuration: maxDuration || 120 },
-    });
+    const created = await runwayFetch(
+      baseUrl,
+      apiKey,
+      "/v1/realtime_sessions",
+      {
+        method: "POST",
+        body: {
+          model: "gwm1_avatars",
+          avatar,
+          maxDuration: maxDuration || 120,
+        },
+      }
+    );
     session.runwaySessionId = created.id;
     log(`Runway session created: ${created.id}`);
 
-    // 2. Poll until ready
     session.status = "polling";
     log("Waiting for avatar to be ready...");
     let sessionKey;
@@ -252,10 +358,10 @@ async function runSessionPipeline(
       }
       await sleep(2000);
     }
-    if (!sessionKey) throw new Error("Timed out waiting for session to be ready");
+    if (!sessionKey)
+      throw new Error("Timed out waiting for session to be ready");
     log("Avatar is ready");
 
-    // 3. Consume to get LiveKit creds
     session.status = "consuming";
     log("Getting LiveKit credentials...");
     const creds = await runwayFetch(
@@ -267,12 +373,16 @@ async function runSessionPipeline(
     session.liveKit = { url: creds.url, token: creds.token };
     log(`LiveKit room: ${creds.roomName}`);
 
-    // 4. Create Recall bot
     session.status = "bot_joining";
     const botPageUrl = `${PUBLIC_URL}/bot.html?session=${session.id}`;
     log(`Creating Recall bot → ${meetingUrl}`);
-    log(`Bot page: ${botPageUrl}`);
-    const bot = await createRecallBot(meetingUrl, botName, botPageUrl);
+    log(`Video relay: ${WS_PUBLIC_URL}/ws/recall-video/${session.id}`);
+    const bot = await createRecallBot(
+      meetingUrl,
+      botName,
+      botPageUrl,
+      session.id
+    );
     session.recallBotId = bot.id;
     log(`Recall bot created: ${bot.id}`);
 
@@ -313,6 +423,9 @@ async function stopSession(session) {
     }
   }
 
+  // Clean up relay clients
+  videoRelayClients.delete(session.id);
+
   session.status = "ended";
   log("Session ended");
 }
@@ -325,8 +438,9 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-app.listen(parseInt(PORT), () => {
+httpServer.listen(parseInt(PORT), () => {
   console.log(`\n  Calliope Meet server running on http://localhost:${PORT}`);
   console.log(`  Public URL: ${PUBLIC_URL}`);
+  console.log(`  WebSocket URL: ${WS_PUBLIC_URL}`);
   console.log(`  Recall region: ${RECALL_REGION}\n`);
 });
