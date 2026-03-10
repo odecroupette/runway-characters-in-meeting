@@ -1,4 +1,4 @@
-# Calliope Meet
+# Runway Characters Meet
 
 Send a Runway avatar to any Zoom, Google Meet, or Teams meeting as a separate participant. The avatar hears what people say and responds with real-time video and audio.
 
