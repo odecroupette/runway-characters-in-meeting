@@ -9,28 +9,43 @@ app.use(express.json());
 app.use(express.static("public"));
 
 const {
-  RECALL_API_KEY,
-  RECALL_REGION = "us-west-2",
   PORT = "3000",
+  SERVER_PASSWORD,
+  SERVER_RUNWAY_KEY,
+  SERVER_RUNWAY_BASE_URL = "https://api.dev.runwayml.com",
+  SERVER_RECALL_KEY,
+  SERVER_RECALL_REGION = "us-west-2",
+  SERVER_DAILY_KEY,
+  SERVER_DAILY_DOMAIN,
+  // Legacy support: RECALL_API_KEY still works if SERVER_RECALL_KEY is not set
+  RECALL_API_KEY,
+  RECALL_REGION,
 } = process.env;
 
 const PUBLIC_URL =
   process.env.PUBLIC_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN
     ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-    : `http://localhost:${PORT}`);
+    : process.env.FLY_APP_NAME
+      ? `https://${process.env.FLY_APP_NAME}.fly.dev`
+      : `http://localhost:${PORT}`);
 
 const WS_PUBLIC_URL = PUBLIC_URL.replace(/^https/, "wss").replace(
   /^http/,
   "ws"
 );
 
-const RECALL_BASE = `https://${RECALL_REGION}.recall.ai/api/v1`;
+// Recall base URL is computed per-request now (supports client-side keys)
+function getRecallBase(region) {
+  return `https://${region}.recall.ai/api/v1`;
+}
 
 // In-memory session store
 const sessions = new Map();
 // WebSocket clients: sessionId → Set of bot page WebSocket connections
 const videoRelayClients = new Map();
+// Server-side auth tokens (simple in-memory set)
+const validTokens = new Set();
 
 // ---------------------------------------------------------------------------
 // Runway API helpers (per-user credentials)
@@ -65,11 +80,12 @@ async function runwayFetch(
 // Recall.ai API helpers (shared server credential)
 // ---------------------------------------------------------------------------
 
-async function recallFetch(path, { method = "GET", body } = {}) {
-  const res = await fetch(`${RECALL_BASE}${path}`, {
+async function recallFetch(recallCreds, path, { method = "GET", body } = {}) {
+  const base = getRecallBase(recallCreds.region);
+  const res = await fetch(`${base}${path}`, {
     method,
     headers: {
-      Authorization: `Token ${RECALL_API_KEY}`,
+      Authorization: `Token ${recallCreds.apiKey}`,
       "Content-Type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -84,9 +100,23 @@ async function recallFetch(path, { method = "GET", body } = {}) {
   return data;
 }
 
-async function createRecallBot(meetingUrl, botName, botPageUrl, sessionId) {
-  const displayName = botName || "Calliope Avatar";
-  return recallFetch("/bot/", {
+function getRecallCreds(req) {
+  // Server-side auth: use server env vars
+  if (isServerAuth(req)) {
+    const key = SERVER_RECALL_KEY || RECALL_API_KEY;
+    if (!key) throw new Error("Recall API key not configured on server");
+    return { apiKey: key, region: SERVER_RECALL_REGION || RECALL_REGION || "us-west-2" };
+  }
+  // Client-side: from headers
+  const apiKey = req.headers["x-recall-key"];
+  const region = req.headers["x-recall-region"] || "us-west-2";
+  if (!apiKey) throw new Error("Recall API key is required");
+  return { apiKey, region };
+}
+
+async function createRecallBot(recallCreds, meetingUrl, botName, botPageUrl, sessionId) {
+  const displayName = botName || "ClubAI Character";
+  return recallFetch(recallCreds, "/bot/", {
     method: "POST",
     body: {
       meeting_url: meetingUrl,
@@ -123,10 +153,10 @@ async function createRecallBot(meetingUrl, botName, botPageUrl, sessionId) {
   });
 }
 
-async function deleteRecallBot(botId) {
+async function deleteRecallBot(recallCreds, botId) {
   try {
     console.log(`[recall] Sending leave_call for bot ${botId}`);
-    const result = await recallFetch(`/bot/${botId}/leave_call/`, { method: "POST" });
+    const result = await recallFetch(recallCreds, `/bot/${botId}/leave_call/`, { method: "POST" });
     console.log(`[recall] Bot ${botId} left the call`);
     return result;
   } catch (err) {
@@ -138,7 +168,19 @@ async function deleteRecallBot(botId) {
 // Middleware: extract per-user Runway credentials from headers
 // ---------------------------------------------------------------------------
 
+function isServerAuth(req) {
+  const token = req.headers["x-server-token"];
+  return token && validTokens.has(token);
+}
+
 function getRunwayCreds(req) {
+  // If server-side auth, use server env vars
+  if (isServerAuth(req) && SERVER_RUNWAY_KEY) {
+    return {
+      apiKey: SERVER_RUNWAY_KEY,
+      baseUrl: SERVER_RUNWAY_BASE_URL.replace(/\/+$/, ""),
+    };
+  }
   const apiKey = req.headers["x-runway-key"];
   const baseUrl = (
     req.headers["x-runway-base-url"] || "https://api.dev.runwayml.com"
@@ -151,6 +193,118 @@ function getRunwayCreds(req) {
 // Routes
 // ---------------------------------------------------------------------------
 
+// Server-side auth: validate password, return token
+app.post("/api/auth", (req, res) => {
+  const { password } = req.body;
+  if (!SERVER_PASSWORD) {
+    return res.status(501).json({ error: "Server-side auth not configured" });
+  }
+  if (password !== SERVER_PASSWORD) {
+    return res.status(401).json({ error: "Invalid password" });
+  }
+  const token = randomUUID();
+  validTokens.add(token);
+  // Return which server-side services are available
+  res.json({
+    token,
+    services: {
+      runway: !!SERVER_RUNWAY_KEY,
+      daily: !!SERVER_DAILY_KEY,
+      recall: !!(SERVER_RECALL_KEY || RECALL_API_KEY),
+    },
+  });
+});
+
+// Check server-side config availability (no auth needed)
+app.get("/api/server-info", (req, res) => {
+  res.json({
+    serverAuthAvailable: !!SERVER_PASSWORD,
+  });
+});
+
+// API ping/verify endpoints
+app.get("/api/verify/runway", async (req, res) => {
+  try {
+    const { apiKey, baseUrl } = getRunwayCreds(req);
+    await runwayFetch(baseUrl, apiKey, "/v1/avatars?limit=1");
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(401).json({ ok: false, error: err.message });
+  }
+});
+
+app.get("/api/verify/recall", async (req, res) => {
+  try {
+    const creds = getRecallCreds(req);
+    await recallFetch(creds, "/bot/?limit=1");
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(401).json({ ok: false, error: err.message });
+  }
+});
+
+app.get("/api/verify/daily", async (req, res) => {
+  try {
+    const apiKey = isServerAuth(req) && SERVER_DAILY_KEY
+      ? SERVER_DAILY_KEY
+      : req.headers["x-daily-key"];
+    if (!apiKey) throw new Error("Daily.co API key required");
+    const response = await fetch("https://api.daily.co/v1/rooms?limit=1", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(401).json({ ok: false, error: err.message });
+  }
+});
+
+// Daily.co rooms proxy (uses server key or client key)
+app.get("/api/daily/rooms", async (req, res) => {
+  try {
+    const apiKey = isServerAuth(req) && SERVER_DAILY_KEY
+      ? SERVER_DAILY_KEY
+      : req.headers["x-daily-key"];
+    if (!apiKey) return res.status(400).json({ error: "Daily.co API key required" });
+
+    const response = await fetch("https://api.daily.co/v1/rooms", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Test character performance (act_two model)
+app.post("/api/test/character-performance", async (req, res) => {
+  try {
+    const { apiKey, baseUrl } = getRunwayCreds(req);
+    const body = req.body || {
+      model: "act_two",
+      character: {
+        type: "image",
+        uri: "https://runway-static-assets.s3.us-east-1.amazonaws.com/devportal/playground-examples/cp-act-two-character-input.jpeg",
+      },
+      reference: {
+        type: "video",
+        uri: "https://runway-static-assets.s3.us-east-1.amazonaws.com/devportal/playground-examples/cp-act-two-reference-input.mp4",
+      },
+      seed: 143092836,
+      bodyControl: false,
+    };
+    const data = await runwayFetch(baseUrl, apiKey, "/v1/character_performance", {
+      method: "POST",
+      body,
+    });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/avatars", async (req, res) => {
   try {
     const { apiKey, baseUrl } = getRunwayCreds(req);
@@ -162,18 +316,35 @@ app.get("/api/avatars", async (req, res) => {
   }
 });
 
+app.get("/api/avatars/:id", async (req, res) => {
+  try {
+    const { apiKey, baseUrl } = getRunwayCreds(req);
+    const data = await runwayFetch(baseUrl, apiKey, `/v1/avatars/${req.params.id}`);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/start", (req, res) => {
-  let runway;
+  let runway, recall;
   try {
     runway = getRunwayCreds(req);
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
 
-  const { meetingUrl, avatarType, avatarId, botName, maxDuration } = req.body;
+  const { meetingUrl, avatarType, avatarId, botName, maxDuration, mode = "recall" } = req.body;
 
-  if (!meetingUrl)
-    return res.status(400).json({ error: "meetingUrl required" });
+  if (mode === "recall") {
+    if (!meetingUrl) return res.status(400).json({ error: "meetingUrl required" });
+    try {
+      recall = getRecallCreds(req);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
   if (!avatarId) return res.status(400).json({ error: "avatarId required" });
 
   const avatar =
@@ -184,13 +355,15 @@ app.post("/api/start", (req, res) => {
   const id = randomUUID();
   const session = {
     id,
+    mode,
     status: "creating",
     error: null,
     runwaySessionId: null,
     recallBotId: null,
     liveKit: null,
-    meetingUrl,
+    meetingUrl: meetingUrl || null,
     runway,
+    recall: recall || null,
     logs: [],
   };
   sessions.set(id, session);
@@ -237,6 +410,17 @@ app.post("/api/sessions/:id/mute", (req, res) => {
   }
 
   res.json({ muted: session.muted });
+});
+
+// Bot page debug log endpoint
+app.post("/api/sessions/:id/botlog", express.text(), (req, res) => {
+  const session = sessions.get(req.params.id);
+  const msg = req.body || "(empty)";
+  const ts = new Date().toISOString().slice(11, 23);
+  const logLine = `[${ts}] [bot-page] ${msg}`;
+  console.log(`[${req.params.id.slice(0, 8)}] ${logLine}`);
+  if (session) session.logs.push(logLine);
+  res.json({ ok: true });
 });
 
 app.post("/api/sessions/:id/stop", async (req, res) => {
@@ -402,21 +586,27 @@ async function runSessionPipeline(
     session.liveKit = { url: creds.url, token: creds.token };
     log(`LiveKit room: ${creds.roomName}`);
 
-    session.status = "bot_joining";
-    const botPageUrl = `${PUBLIC_URL}/bot.html?session=${session.id}`;
-    log(`Creating Recall bot → ${meetingUrl}`);
-    log(`Video relay: ${WS_PUBLIC_URL}/ws/recall-video/${session.id}`);
-    const bot = await createRecallBot(
-      meetingUrl,
-      botName,
-      botPageUrl,
-      session.id
-    );
-    session.recallBotId = bot.id;
-    log(`Recall bot created: ${bot.id}`);
-
-    session.status = "active";
-    log("Avatar is live in the meeting!");
+    if (session.mode === "recall") {
+      session.status = "bot_joining";
+      const botPageUrl = `${PUBLIC_URL}/bot.html?session=${session.id}`;
+      log(`Creating Recall bot → ${meetingUrl}`);
+      log(`Video relay: ${WS_PUBLIC_URL}/ws/recall-video/${session.id}`);
+      const bot = await createRecallBot(
+        session.recall,
+        meetingUrl,
+        botName,
+        botPageUrl,
+        session.id
+      );
+      session.recallBotId = bot.id;
+      log(`Recall bot created: ${bot.id}`);
+      session.status = "active";
+      log("Character is live in the meeting!");
+    } else {
+      // Direct mode (daily/vdoninja): LiveKit creds ready, client handles the rest
+      session.status = "active";
+      log(`LiveKit credentials ready — client will bridge to ${session.mode}`);
+    }
   } catch (err) {
     session.status = "failed";
     session.error = err.message;
@@ -433,9 +623,9 @@ async function stopSession(session) {
 
   log("Stopping session...");
 
-  if (session.recallBotId) {
+  if (session.recallBotId && session.recall) {
     log("Removing Recall bot from meeting...");
-    await deleteRecallBot(session.recallBotId);
+    await deleteRecallBot(session.recall, session.recallBotId);
   }
 
   if (session.runwaySessionId && session.runway) {
@@ -468,8 +658,8 @@ function sleep(ms) {
 }
 
 httpServer.listen(parseInt(PORT), () => {
-  console.log(`\n  Calliope Meet server running on http://localhost:${PORT}`);
+  console.log(`\n  ClubAI Character Meet running on http://localhost:${PORT}`);
   console.log(`  Public URL: ${PUBLIC_URL}`);
   console.log(`  WebSocket URL: ${WS_PUBLIC_URL}`);
-  console.log(`  Recall region: ${RECALL_REGION}\n`);
+  console.log(`  Recall region: ${SERVER_RECALL_REGION || RECALL_REGION || 'not set'}\n`);
 });

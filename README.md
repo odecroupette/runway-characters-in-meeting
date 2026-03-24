@@ -1,85 +1,94 @@
-# Runway Characters Meet
+# Meet ClubAI Character
 
-Send a Runway avatar to any Zoom, Google Meet, or Teams meeting as a separate participant. The avatar hears what people say and responds with real-time video and audio.
+Send an AI character to any video meeting as a live participant. The character
+sees, hears, and responds in real time using Runway's GWM-1 Avatars.
 
-Uses [Recall.ai](https://www.recall.ai/) to join meetings and [Runway's Realtime Avatars API](https://docs.dev.runwayml.com/api/#tag/Realtime-Sessions) (GWM-1 Avatars) for the avatar.
+Demo: https://charactermeetclubai.fly.dev/
 
-Demo: https://runway-characters-meet-production.up.railway.app/
+## Meeting Modes
 
-## How It Works
-
-```
-Zoom / Meet / Teams
-  ↕  Recall.ai bot joins as a participant
-Recall bot runs a webpage (bot.html)
-  ├─ Meeting audio → getUserMedia() → published to LiveKit room
-  ├─ Runway avatar hears the meeting audio, generates response
-  ├─ Avatar video → LiveKit → rendered on the page → bot's camera feed
-  └─ Avatar audio → LiveKit → played on the page → bot's mic feed
-```
+| Mode | Platform | How It Works |
+|---|---|---|
+| **External** | Google Meet, Zoom, Teams | A Recall.ai bot joins the meeting as a participant, rendering the character as a webpage-based camera feed. Audio is relayed through LiveKit. |
+| **Daily.co** | Daily.co hosted rooms | A browser-side bridge joins the Daily.co room and Runway's LiveKit room simultaneously, piping video/audio between them. No bot infrastructure needed. |
+| **VDO.Ninja** | Peer-to-peer WebRTC | The VDO.Ninja SDK publishes the character's video/audio tracks directly into the room. Serverless, free, no accounts required. |
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 18+
-- A [Recall.ai API key](https://www.recall.ai/)
-- A [Runway API key](https://app.runwayml.com/settings/api-keys) (each user enters their own in the UI)
+- A [Runway API key](https://app.runwayml.com/settings/api-keys)
+- For External mode: a [Recall.ai API key](https://www.recall.ai/)
+- For Daily.co mode: a [Daily.co API key](https://dashboard.daily.co/)
+- For VDO.Ninja mode: nothing — it's free and open
 
-## Local Development
+## Quick Start
 
 ```sh
 npm install
-
 cp .env.example .env
-# Edit .env — add your Recall.ai API key
-
-# Start ngrok (separate terminal)
-ngrok http 3000
-
-# Set PUBLIC_URL in .env to your ngrok URL
-# e.g. PUBLIC_URL=https://abc123.ngrok-free.app
-
-npm start
+# Edit .env — add your API keys
+npm run dev
 ```
 
-Open http://localhost:3000, enter your Runway API key, paste a meeting URL, pick an avatar, and go.
+Open http://localhost:3000, configure API keys in Settings, pick a meeting
+mode, choose a character, and go.
 
-## Deploy to Railway
+## API Key Configuration
 
-The easiest way to share with colleagues. Only the Recall.ai key lives on the server — each user enters their own Runway API key in the browser.
+Keys can be provided in two ways:
 
-1. Push to GitHub
-2. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**
-3. Set environment variables in Railway's dashboard:
-   - `RECALL_API_KEY` — your Recall.ai API key
-   - `RECALL_REGION` — `us-west-2` (or your region)
-   - No need to set `PUBLIC_URL` — Railway is auto-detected
-   - No need to set `PORT` — Railway sets it automatically
-4. Deploy. Railway gives you a public URL like `calliope-meet-production.up.railway.app`
-5. Share the URL with colleagues — they just need their own Runway API key
+- **Client-side (browser)**: Each user enters their own keys in the Settings
+  modal. Keys are stored in localStorage and never sent to the server except
+  to proxy API calls.
+- **Server-side**: Set keys as environment variables and protect them with
+  `SERVER_PASSWORD`. Users unlock server keys from the browser without seeing
+  the actual values.
 
 ## Environment Variables
 
-| Variable | Where | Description |
-|---|---|---|
-| `RECALL_API_KEY` | Server `.env` | Recall.ai API key (shared) |
-| `RECALL_REGION` | Server `.env` | Recall.ai region (default: `us-west-2`) |
-| `PUBLIC_URL` | Server `.env` | How Recall reaches this server (auto-detected on Railway) |
-| `PORT` | Server `.env` | Server port (default: `3000`, auto-set on Railway) |
-| Runway API Key | Browser UI | Each user enters their own — saved in localStorage |
+| Variable | Purpose |
+|---|---|
+| `PORT` | Server port (default: 3000) |
+| `PUBLIC_URL` | How Recall reaches this server (auto-detected on Railway/Fly.io) |
+| `SERVER_PASSWORD` | Password to unlock server-side API keys from the browser |
+| `SERVER_RUNWAY_KEY` | Runway API key (server-side) |
+| `SERVER_RUNWAY_BASE_URL` | Runway base URL (default: https://api.dev.runwayml.com) |
+| `SERVER_RECALL_KEY` | Recall.ai API key (server-side) |
+| `SERVER_RECALL_REGION` | Recall.ai region (default: us-west-2) |
+| `SERVER_DAILY_KEY` | Daily.co API key (server-side) |
 
-## Project Structure
+## Deploy to Fly.io
+
+```sh
+fly launch --no-deploy
+fly secrets set SERVER_PASSWORD=... SERVER_RUNWAY_KEY=... SERVER_RECALL_KEY=...
+fly deploy
+```
+
+## Deploy to Railway
+
+Push to GitHub, create a new Railway project from the repo, set environment
+variables in the dashboard. `PUBLIC_URL` and `PORT` are auto-detected.
+
+## Architecture
 
 ```
-calliope-meet/
-├── server.js           # Express server — Runway & Recall API orchestration
-├── public/
-│   ├── index.html      # Control panel UI (users enter Runway key here)
-│   └── bot.html        # Webpage rendered by Recall's bot (LiveKit + avatar)
-├── .env.example
-└── package.json
+Meeting participants ←→ [Recall bot / Daily.co / VDO.Ninja]
+                              ↕
+                        Browser bridge (or bot.html)
+                              ↕
+                        LiveKit room (Runway)
+                              ↕
+                        Runway avatar engine (GWM-1)
 ```
+
+The server (`server.js`) orchestrates Runway session creation and provides
+API proxies. For External mode, a Recall.ai bot renders `bot.html` as its
+camera. For Daily.co and VDO.Ninja, the browser handles the bridge directly.
 
 ## Cost
 
-- **Recall.ai**: ~$0.60/hour per bot (4-core variant for smooth audio)
-- **Runway**: Standard realtime session pricing (billed to each user's own API key)
+- **Runway**: Realtime session pricing (billed to API key owner)
+- **Recall.ai**: ~$0.60/hour per bot (External mode only)
+- **Daily.co**: Per their pricing (room hosting)
+- **VDO.Ninja**: Free

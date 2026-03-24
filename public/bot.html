@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1280, height=720">
-<title>Calliope Avatar</title>
+<title>ClubAI Character</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -58,6 +58,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.js"></script>
 <script>
+if (typeof LivekitClient === "undefined") {
+  document.getElementById("status-text").textContent = "LiveKit SDK failed to load";
+}
 const { Room, RoomEvent, Track } = LivekitClient;
 
 const params = new URLSearchParams(window.location.search);
@@ -70,14 +73,24 @@ const videoEl = document.getElementById("avatar-video");
 const meetingCanvas = document.getElementById("meeting-canvas");
 const ctx = meetingCanvas.getContext("2d");
 
+function reportToServer(msg) {
+  fetch(`/api/sessions/${sessionId}/botlog`, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: msg,
+  }).catch(() => {});
+}
+
 function setStatus(msg) {
   statusText.textContent = msg;
   console.log("[bot]", msg);
+  reportToServer(msg);
 }
 
 function setError(msg) {
   errorText.textContent = msg;
   console.error("[bot]", msg);
+  reportToServer("ERROR: " + msg);
 }
 
 async function fetchCreds(retries = 30) {
@@ -208,16 +221,19 @@ async function start() {
   });
 
   room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+    reportToServer(`TrackSubscribed: kind=${track.kind} name=${publication.trackName} from=${participant.identity}`);
     if (track.kind === Track.Kind.Video) {
       track.attach(videoEl);
       videoEl.style.display = "block";
       statusOverlay.classList.add("hidden");
+      reportToServer("Avatar video attached to element");
     }
     if (track.kind === Track.Kind.Audio) {
       const audioEl = track.attach();
       audioEl.volume = 1.0;
       document.body.appendChild(audioEl);
       avatarAudioElements.push(audioEl);
+      reportToServer("Avatar audio attached");
     }
   });
 
@@ -241,8 +257,10 @@ async function start() {
       });
   });
 
+  reportToServer(`Connecting to LiveKit: ${creds.url}`);
   await room.connect(creds.url, creds.token);
   setStatus("Connected — waiting for avatar video...");
+  reportToServer(`Room state: ${room.state}, participants: ${room.remoteParticipants.size}`);
 
   // 3. Capture meeting audio and publish to LiveKit
   try {
