@@ -11,6 +11,7 @@ primary_region = 'ams'
 
 [env]
   PORT = '8080'
+  PUBLIC_URL = 'https://charactermeetclubai.fly.dev'
   RECALL_REGION = 'us-west-2'
 
 [http_service]

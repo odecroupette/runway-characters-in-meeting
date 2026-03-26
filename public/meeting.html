@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Meet ClubAI Character</title>
+<title>Character Meet @ClubAI</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎭</text></svg>">
 <style>
   :root {
     --bg: #0a0e1a;
@@ -20,6 +21,7 @@
     --red: #EF4444;
     --green: #22C55E;
     --yellow: #EAB308;
+    --warn: #F59E0B;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -135,17 +137,73 @@
 
 <div class="container" id="main-page">
   <div class="header">
-    <h1>Meet ClubAI Character</h1>
+    <h1>Character Meet @ClubAI</h1>
     <a class="settings-link" onclick="openSettings()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
       Settings
     </a>
   </div>
-  <p class="subtitle">Send a character to any video meeting</p>
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+    <p class="subtitle" style="margin-bottom: 0;">Send a character to any video meeting</p>
+    <button class="verify-btn" onclick="testActTwo()" id="test-acttwo" title="Test Character Performance (act_two model)" style="flex-shrink: 0;">Test act_two</button>
+  </div>
 
   <div class="api-status-bar" id="api-status-bar"></div>
 
   <div class="card">
+    <h2>Character</h2>
+    <div class="field">
+      <label for="bot-name">Character Name</label>
+      <input type="text" id="bot-name" value="ClubAI Character">
+    </div>
+    <div class="row" style="margin-top: 14px;">
+      <div class="field">
+        <label for="avatar-type">Type</label>
+        <select id="avatar-type">
+          <option value="preset">Preset</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="field" id="preset-field">
+        <label for="preset-id">Preset</label>
+        <select id="preset-id">
+          <option value="game-character">Game Character</option>
+          <option value="game-character-man">Game Character Man</option>
+          <option value="music-superstar">Music Superstar</option>
+          <option value="cat-character">Cat Character</option>
+          <option value="influencer">Influencer</option>
+          <option value="tennis-coach">Tennis Coach</option>
+          <option value="human-resource">Human Resource</option>
+          <option value="fashion-designer">Fashion Designer</option>
+          <option value="cooking-teacher">Cooking Teacher</option>
+        </select>
+      </div>
+      <div class="field hidden" id="custom-field">
+        <label for="custom-id">Your Characters</label>
+        <select id="custom-id">
+          <option value="">Select a character...</option>
+          <option value="__manual__">Enter UUID manually...</option>
+        </select>
+        <div class="hint hidden" id="custom-no-key-hint" style="color: var(--warn);">Runway API key not configured — set it in Settings</div>
+      </div>
+    </div>
+    <div class="field hidden" id="manual-uuid-field">
+      <label for="custom-id-manual">Character UUID</label>
+      <input type="text" id="custom-id-manual" placeholder="Paste character UUID here">
+      <div class="hint">Only characters from your own Runway account will work</div>
+    </div>
+    <div class="hidden" id="char-preview-wrap">
+      <div class="char-preview">
+        <img id="char-preview-img" src="" alt="">
+        <div class="char-preview-info">
+          <div class="char-preview-name" id="char-preview-name"></div>
+          <div class="char-preview-desc" id="char-preview-desc"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-divider"></div>
+
     <h2>Meeting</h2>
     <div class="meeting-tabs">
       <button class="meeting-tab active" onclick="setMeetingType('recall')" id="tab-recall" title="Join Google Meet, Zoom, or Teams via a Recall.ai bot participant">&#127760; External</button>
@@ -157,7 +215,8 @@
       <div class="field">
         <label for="meeting-url">Meeting URL</label>
         <input type="url" id="meeting-url" placeholder="https://meet.google.com/abc-defg-hij">
-        <div class="hint">Google Meet, Zoom, or Teams — character joins via Recall.ai bot</div>
+        <div class="hint" id="recall-hint">Google Meet, Zoom, or Teams — character joins via Recall.ai bot</div>
+        <div class="hint hidden" id="recall-warn" style="color: var(--warn);">Recall.ai API key not configured — set it in Settings or unlock server keys</div>
       </div>
     </div>
 
@@ -187,10 +246,9 @@
       </div>
       <div class="field">
         <label for="vdoninja-streamid">Stream ID</label>
-        <input type="text" id="vdoninja-streamid" placeholder="clubai-character" value="clubai-character">
-        <div class="hint">Unique identifier for the character's stream</div>
+        <input type="text" id="vdoninja-streamid" placeholder="clubai_character" value="clubai_character">
+        <div class="hint">Unique identifier for the character's stream. Use the guest link to share this tab to VDO.Ninja.</div>
       </div>
-      <!-- Links shown after connection -->
       <div class="hidden" id="vdo-links" style="margin-top: 12px;">
         <div class="hint" style="margin-bottom: 6px;">Room links:</div>
         <div style="font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
@@ -201,59 +259,6 @@
       </div>
     </div>
 
-    <div class="section-divider"></div>
-
-    <h2>Character</h2>
-    <div class="row">
-      <div class="field">
-        <label for="avatar-type">Type</label>
-        <select id="avatar-type">
-          <option value="preset">Preset</option>
-          <option value="custom">Custom</option>
-        </select>
-      </div>
-      <div class="field" id="preset-field">
-        <label for="preset-id">Preset</label>
-        <select id="preset-id">
-          <option value="game-character">Game Character</option>
-          <option value="game-character-man">Game Character Man</option>
-          <option value="music-superstar">Music Superstar</option>
-          <option value="cat-character">Cat Character</option>
-          <option value="influencer">Influencer</option>
-          <option value="tennis-coach">Tennis Coach</option>
-          <option value="human-resource">Human Resource</option>
-          <option value="fashion-designer">Fashion Designer</option>
-          <option value="cooking-teacher">Cooking Teacher</option>
-        </select>
-      </div>
-      <div class="field hidden" id="custom-field">
-        <label for="custom-id">Your Characters</label>
-        <select id="custom-id">
-          <option value="">Select a character...</option>
-          <option value="__manual__">Enter UUID manually...</option>
-        </select>
-      </div>
-    </div>
-    <!-- Manual UUID input (shown when "Enter UUID manually" selected) -->
-    <div class="field hidden" id="manual-uuid-field">
-      <label for="custom-id-manual">Character UUID</label>
-      <input type="text" id="custom-id-manual" placeholder="Paste character UUID here">
-      <div class="hint">Only characters from your own Runway account will work</div>
-    </div>
-    <!-- Character preview -->
-    <div class="hidden" id="char-preview-wrap">
-      <div class="char-preview">
-        <img id="char-preview-img" src="" alt="">
-        <div class="char-preview-info">
-          <div class="char-preview-name" id="char-preview-name"></div>
-          <div class="char-preview-desc" id="char-preview-desc"></div>
-        </div>
-      </div>
-    </div>
-    <div class="field">
-      <label for="bot-name">Character Name</label>
-      <input type="text" id="bot-name" value="ClubAI Character">
-    </div>
     <div class="field" style="margin-top: 20px">
       <button class="btn-primary" id="start-btn" onclick="startSession()">Send Character to Meeting</button>
     </div>
@@ -305,6 +310,19 @@
       </div>
     </div>
 
+    <!-- Debug toggle (only visible after server unlock) -->
+    <div class="card hidden" id="debug-card" style="padding: 16px;">
+      <div class="toggle-row">
+        <span class="toggle-label">Enable debug console</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="debug-toggle" onchange="toggleDebug()">
+          <span class="toggle-track"></span>
+          <span class="toggle-knob"></span>
+        </label>
+      </div>
+      <div class="hint">Opens a debug window showing all API calls, WebRTC events, and track states in real time</div>
+    </div>
+
     <!-- Runway -->
     <div class="card">
       <div class="api-card-header">
@@ -312,7 +330,6 @@
         <span class="api-status-badge missing" id="badge-runway">Not configured</span>
         <span class="verified-check" id="check-runway">&#10003;</span>
         <button class="verify-btn" onclick="verifyApi('runway')" id="verify-runway">Verify</button>
-        <button class="verify-btn" onclick="testActTwo()" id="test-acttwo" title="Test Character Performance (act_two model)">Test act_two</button>
         <div class="tooltip-wrap">
           <div class="api-info">?</div>
           <div class="tooltip"><strong>Runway — Realtime AI Characters</strong><br>Powers the AI character's video and audio generation. Uses the GWM-1 Avatars model to create real-time conversational characters via LiveKit.</div>
@@ -415,6 +432,58 @@ var customAvatarsCache = [];
 var sessionTimer = null;
 var sessionStartTime = null;
 var dailyRoomsLoaded = false;
+var debugEnabled = false;
+var debugWindow = null;
+
+// ---------------------------------------------------------------------------
+// Debug system
+// ---------------------------------------------------------------------------
+function dbg(tag, message, details) {
+  if (!debugEnabled) return;
+  console.log('[' + tag + ']', message, details || '');
+  if (debugWindow && !debugWindow.closed) {
+    debugWindow.postMessage({ type: 'debug-log', tag: tag, message: message, details: details }, '*');
+  }
+}
+
+function dbgTrack(id, label, kind, source) {
+  if (!debugEnabled) return;
+  if (debugWindow && !debugWindow.closed) {
+    debugWindow.postMessage({ type: 'debug-track', id: id, label: label, kind: kind, source: source }, '*');
+  }
+}
+
+function dbgState(key, value) {
+  if (!debugEnabled) return;
+  if (debugWindow && !debugWindow.closed) {
+    debugWindow.postMessage({ type: 'debug-state', key: key, value: value }, '*');
+  }
+}
+
+function openDebugWindow() {
+  if (debugWindow && !debugWindow.closed) { debugWindow.focus(); return; }
+  debugWindow = window.open('debug.html', 'clubai-debug', 'width=800,height=600,resizable=yes');
+}
+
+// Intercept all fetch calls for debug logging
+var originalFetch = window.fetch;
+window.fetch = function(url, opts) {
+  var method = (opts && opts.method) || 'GET';
+  var urlStr = typeof url === 'string' ? url : url.toString();
+  dbg('api', method + ' ' + urlStr);
+  var startTime = Date.now();
+  return originalFetch.apply(this, arguments).then(function(response) {
+    var duration = Date.now() - startTime;
+    var status = response.status;
+    dbg('api', method + ' ' + urlStr + ' \u2192 ' + status + ' (' + duration + 'ms)');
+    dbgState('api.lastCall', method + ' ' + urlStr);
+    dbgState('api.lastStatus', status);
+    return response;
+  }).catch(function(err) {
+    dbg('error', method + ' ' + urlStr + ' FAILED: ' + err.message);
+    throw err;
+  });
+};
 
 var startBtn = document.getElementById('start-btn');
 var stopBtn = document.getElementById('stop-btn');
@@ -556,59 +625,201 @@ function renderPreview(avatar) {
 // ---------------------------------------------------------------------------
 // API status chips
 // ---------------------------------------------------------------------------
+// Compute API state for a given service
+// Returns: { ok, source, hasLocal, hasServer, serverUnlocked }
+function getApiState(localInputId, serviceName) {
+  var useServer = document.getElementById('use-server') && document.getElementById('use-server').checked && serverToken;
+  var hasLocal = !!(document.getElementById(localInputId) && document.getElementById(localInputId).value);
+  var hasServer = useServer && serverServices[serviceName];
+  return {
+    ok: hasLocal || hasServer,
+    source: hasServer ? 'server' : (hasLocal ? 'local' : 'none'),
+    hasLocal: hasLocal,
+    hasServer: hasServer,
+    serverUnlocked: useServer,
+  };
+}
+
 function updateStatusChips() {
   var bar = document.getElementById('api-status-bar');
-  var useServer = document.getElementById('use-server') && document.getElementById('use-server').checked && serverToken;
-  var runwayOk = !!(document.getElementById('s-runway-key').value) || (useServer && serverServices.runway);
-  var recallOk = !!(document.getElementById('s-recall-key').value) || (useServer && serverServices.recall);
-  var dailyOk = !!(document.getElementById('s-daily-key').value) || (useServer && serverServices.daily);
+  var runway = getApiState('s-runway-key', 'runway');
+  var recall = getApiState('s-recall-key', 'recall');
+  var daily = getApiState('s-daily-key', 'daily');
 
   var chips = [
-    { name: 'Runway', ok: runwayOk, server: useServer && serverServices.runway },
-    { name: 'Recall.ai', ok: recallOk, server: useServer && serverServices.recall },
-    { name: 'Daily.co', ok: dailyOk, server: useServer && serverServices.daily },
-    { name: 'VDO.Ninja', ok: true, server: false },
+    { name: 'Runway', state: runway },
+    { name: 'Recall.ai', state: recall },
+    { name: 'Daily.co', state: daily },
+    { name: 'VDO.Ninja', state: { ok: true, source: 'free' } },
   ];
 
   var html = '';
   chips.forEach(function(c) {
-    var dotClass = c.server ? 'server' : (c.ok ? 'ok' : 'missing');
-    html += '<div class="api-chip"><span class="chip-dot ' + dotClass + '"></span> ' + c.name + '</div>';
+    var dotClass = c.state.source === 'server' ? 'server' : (c.state.ok ? 'ok' : 'missing');
+    var label = c.name;
+    if (c.state.source === 'server') label += ' (server)';
+    else if (c.state.source === 'local') label += ' (local)';
+    html += '<div class="api-chip"><span class="chip-dot ' + dotClass + '"></span> ' + label + '</div>';
   });
   bar.textContent = '';
   bar.insertAdjacentHTML('beforeend', html);
 
-  updateBadge('badge-runway', runwayOk, useServer && serverServices.runway);
-  updateBadge('badge-recall', recallOk, useServer && serverServices.recall);
-  updateBadge('badge-daily', dailyOk, useServer && serverServices.daily);
+  // Update settings badges
+  updateBadge('badge-runway', runway);
+  updateBadge('badge-recall', recall);
+  updateBadge('badge-daily', daily);
 
+  // Checkmarks in settings
   document.getElementById('runway-check').classList.toggle('hidden', !document.getElementById('s-runway-key').value);
   document.getElementById('recall-check').classList.toggle('hidden', !document.getElementById('s-recall-key').value);
   document.getElementById('daily-check').classList.toggle('hidden', !document.getElementById('s-daily-key').value);
 
+  // Show/hide local fields vs server message in settings
   ['runway', 'recall', 'daily'].forEach(function(api) {
     var fields = document.getElementById(api + '-fields');
     var server = document.getElementById(api + '-server');
-    if (fields && server) {
-      var isServerManaged = useServer && serverServices[api];
-      fields.classList.toggle('hidden', isServerManaged);
-      server.classList.toggle('hidden', !isServerManaged);
-    }
+    if (!fields || !server) return;
+    var state = api === 'runway' ? runway : (api === 'recall' ? recall : daily);
+    fields.classList.toggle('hidden', state.hasServer);
+    server.classList.toggle('hidden', !state.hasServer);
   });
+
+  // --- Main page warnings ---
+
+  // Recall: disable meeting URL when not configured
+  var meetingInput = document.getElementById('meeting-url');
+  var recallHint = document.getElementById('recall-hint');
+  var recallWarn = document.getElementById('recall-warn');
+  if (meetingInput && recallHint && recallWarn) {
+    meetingInput.disabled = !recall.ok;
+    if (!recall.ok) {
+      meetingInput.placeholder = 'Recall.ai key required';
+      var warnText = recall.serverUnlocked
+        ? 'No server key for Recall.ai — enter a local key in Settings'
+        : 'Recall.ai API key not configured — set it in Settings';
+      recallWarn.textContent = warnText;
+    } else {
+      meetingInput.placeholder = 'https://meet.google.com/abc-defg-hij';
+    }
+    recallHint.classList.toggle('hidden', !recall.ok);
+    recallWarn.classList.toggle('hidden', recall.ok);
+  }
+
+  // Custom character: show no-key hint and disable inputs
+  var noKeyHint = document.getElementById('custom-no-key-hint');
+  if (noKeyHint) {
+    noKeyHint.classList.toggle('hidden', runway.ok);
+    if (!runway.ok) {
+      noKeyHint.textContent = runway.serverUnlocked
+        ? 'No server key for Runway — enter a local key in Settings'
+        : 'Runway API key not configured — set it in Settings';
+    }
+  }
+  var customSelect = document.getElementById('custom-id');
+  var manualInput = document.getElementById('custom-id-manual');
+  if (customSelect) customSelect.disabled = !runway.ok;
+  if (manualInput) manualInput.disabled = !runway.ok;
+
+  // Daily.co: show empty state with reason if no key
+  updateDailyListWarning(daily);
 }
 
-function updateBadge(id, ok, isServer) {
+function updateDailyListWarning(dailyState) {
+  var dailyList = document.getElementById('daily-room-list');
+  if (!dailyList) return;
+  // Only update if list is empty or has a warning
+  var hasWarning = dailyList.querySelector('.daily-warn-msg');
+  if (dailyState.ok) {
+    if (hasWarning) hasWarning.remove();
+    return;
+  }
+  if (dailyList.children.length > 0 && !hasWarning) return;
+  dailyList.textContent = '';
+  var msg = document.createElement('div');
+  msg.className = 'room-empty daily-warn-msg';
+  msg.style.cssText = 'padding:8px;color:var(--warn)';
+  msg.textContent = dailyState.serverUnlocked
+    ? 'No server key for Daily.co — enter a local key in Settings'
+    : 'Daily.co API key not configured — set it in Settings';
+  dailyList.appendChild(msg);
+}
+
+function updateBadge(id, state) {
   var el = document.getElementById(id);
   if (!el) return;
-  if (isServer) { el.className = 'api-status-badge server'; el.textContent = 'Server-side'; }
-  else if (ok) { el.className = 'api-status-badge ok'; el.textContent = 'Configured'; }
-  else { el.className = 'api-status-badge missing'; el.textContent = 'Not configured'; }
+  if (state.hasServer) {
+    el.className = 'api-status-badge server';
+    el.textContent = 'Server-side';
+  } else if (state.hasLocal) {
+    el.className = 'api-status-badge ok';
+    el.textContent = 'Local key';
+  } else if (state.serverUnlocked) {
+    el.className = 'api-status-badge missing';
+    el.textContent = 'No server key';
+  } else {
+    el.className = 'api-status-badge missing';
+    el.textContent = 'Not configured';
+  }
 }
 
-// Check server info on load
+// Check server info on load + auto-unlock if saved
+var autoUnlocking = false;
+
 fetch('/api/server-info').then(function(r) { return r.json(); }).then(function(d) {
   if (d.serverAuthAvailable) {
     document.getElementById('server-unlock-card').classList.remove('hidden');
+    // Auto-unlock if previously saved
+    var savedPw = localStorage.getItem('clubai:server-password');
+    var savedUseServer = localStorage.getItem('clubai:use-server');
+    if (savedPw && savedUseServer === 'true') {
+      autoUnlocking = true;
+      document.getElementById('use-server').checked = true;
+      document.getElementById('server-password-row').classList.remove('hidden');
+      document.getElementById('server-password').value = savedPw;
+      document.getElementById('unlock-btn').disabled = true;
+      document.getElementById('unlock-btn').textContent = 'Connecting...';
+      // Disable verify buttons during auto-unlock
+      ['verify-runway', 'verify-recall', 'verify-daily'].forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) { btn.disabled = true; btn.textContent = 'Wait...'; }
+      });
+      // Auto-unlock
+      fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: savedPw }),
+      }).then(function(r2) { return r2.json(); }).then(function(result) {
+        autoUnlocking = false;
+        if (result.token) {
+          serverToken = result.token;
+          serverServices = result.services;
+          document.getElementById('unlock-btn').textContent = 'Unlocked';
+          document.getElementById('server-unlock-hint').textContent = 'Auto-unlocked from saved session.';
+          document.getElementById('server-unlock-hint').style.color = 'var(--green)';
+          document.getElementById('debug-card').classList.remove('hidden');
+          // Restore debug toggle
+          if (localStorage.getItem('clubai:debug') === 'true') {
+            document.getElementById('debug-toggle').checked = true;
+            debugEnabled = true;
+          }
+          updateStatusChips();
+          if (serverServices.runway) loadCustomCharacters();
+        }
+        // Re-enable verify buttons
+        ['verify-runway', 'verify-recall', 'verify-daily'].forEach(function(id) {
+          var btn = document.getElementById(id);
+          if (btn) { btn.disabled = false; btn.textContent = 'Verify'; }
+        });
+      }).catch(function() {
+        autoUnlocking = false;
+        document.getElementById('unlock-btn').disabled = false;
+        document.getElementById('unlock-btn').textContent = 'Unlock';
+        ['verify-runway', 'verify-recall', 'verify-daily'].forEach(function(id) {
+          var btn = document.getElementById(id);
+          if (btn) { btn.disabled = false; btn.textContent = 'Verify'; }
+        });
+      });
+    }
   }
   updateStatusChips();
 }).catch(function() { updateStatusChips(); });
@@ -621,6 +832,10 @@ function verifyApi(api) {
   var check = document.getElementById('check-' + api);
   btn.className = 'verify-btn verifying';
   btn.textContent = 'Checking...';
+  ensureServerAuth().then(function() { _doVerifyApi(api, btn, check); });
+}
+
+function _doVerifyApi(api, btn, check) {
 
   fetch('/api/verify/' + api, { headers: getHeaders() })
     .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
@@ -629,6 +844,7 @@ function verifyApi(api) {
         btn.className = 'verify-btn verified';
         btn.textContent = 'Valid';
         check.classList.add('show');
+        if (api === 'runway') loadCustomCharacters();
       } else {
         btn.className = 'verify-btn failed';
         btn.textContent = 'Invalid';
@@ -707,6 +923,8 @@ function toggleServerMode() {
     document.getElementById('unlock-btn').disabled = false;
     document.getElementById('unlock-btn').textContent = 'Unlock';
     document.getElementById('server-unlock-hint').textContent = '';
+    localStorage.removeItem('clubai:server-password');
+    localStorage.setItem('clubai:use-server', 'false');
   }
   updateStatusChips();
 }
@@ -731,11 +949,32 @@ function unlockServer() {
     hint.style.color = 'var(--green)';
     document.getElementById('unlock-btn').disabled = true;
     document.getElementById('unlock-btn').textContent = 'Unlocked';
+    document.getElementById('debug-card').classList.remove('hidden');
+    // Persist server password for auto-unlock on reload
+    localStorage.setItem('clubai:server-password', pw);
+    localStorage.setItem('clubai:use-server', 'true');
     updateStatusChips();
+    if (serverServices.runway) loadCustomCharacters();
   }).catch(function() {
     hint.textContent = 'Connection error';
     hint.style.color = 'var(--red)';
   });
+}
+
+function toggleDebug() {
+  debugEnabled = document.getElementById('debug-toggle').checked;
+  localStorage.setItem('clubai:debug', debugEnabled ? 'true' : 'false');
+  if (debugEnabled) {
+    openDebugWindow();
+    // Enable LiveKit debug logging
+    if (window.LivekitClient && window.LivekitClient.setLogLevel) {
+      window.LivekitClient.setLogLevel('debug');
+      dbg('lk', 'LiveKit log level set to DEBUG');
+    }
+    dbg('api', 'Debug mode enabled');
+    dbg('api', 'Server token: ' + (serverToken ? 'present' : 'none'));
+    dbg('api', 'Server services: ' + JSON.stringify(serverServices));
+  }
 }
 
 function saveSettings() { saveStored(); updateStatusChips(); closeSettings(); }
@@ -744,6 +983,11 @@ function saveSettings() { saveStored(); updateStatusChips(); closeSettings(); }
 // Daily.co room list
 // ---------------------------------------------------------------------------
 function loadDailyRooms() {
+  var daily = getApiState('s-daily-key', 'daily');
+  if (!daily.ok) {
+    updateDailyListWarning(daily);
+    return;
+  }
   var headers = getHeaders();
   fetch('/api/daily/rooms', { headers: headers })
     .then(function(r) { return r.json(); })
@@ -814,16 +1058,37 @@ function setStatus(dotClass, label) {
 
 function getHeaders() {
   var h = { 'Content-Type': 'application/json' };
+  // Always send server token if unlocked (server uses its keys where available)
   if (serverToken && document.getElementById('use-server').checked) {
     h['X-Server-Token'] = serverToken;
-  } else {
-    h['X-Runway-Key'] = document.getElementById('s-runway-key').value.trim();
-    h['X-Runway-Base-URL'] = document.getElementById('s-runway-base-url').value.trim();
-    h['X-Recall-Key'] = document.getElementById('s-recall-key').value.trim();
-    h['X-Recall-Region'] = document.getElementById('s-recall-region').value.trim() || 'us-west-2';
-    h['X-Daily-Key'] = document.getElementById('s-daily-key').value.trim();
   }
+  // Always send local keys too — server falls back to these for APIs without server keys
+  h['X-Runway-Key'] = document.getElementById('s-runway-key').value.trim();
+  h['X-Runway-Base-URL'] = document.getElementById('s-runway-base-url').value.trim();
+  h['X-Recall-Key'] = document.getElementById('s-recall-key').value.trim();
+  h['X-Recall-Region'] = document.getElementById('s-recall-region').value.trim() || 'us-west-2';
+  h['X-Daily-Key'] = document.getElementById('s-daily-key').value.trim();
   return h;
+}
+
+// Re-authenticate before critical actions to handle server restarts / machine switches
+function ensureServerAuth() {
+  if (!document.getElementById('use-server').checked) return Promise.resolve();
+  var savedPw = localStorage.getItem('clubai:server-password');
+  if (!savedPw) return Promise.resolve();
+  return fetch('/api/auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: savedPw }),
+  }).then(function(r) { return r.json(); }).then(function(result) {
+    if (result.token) {
+      serverToken = result.token;
+      serverServices = result.services;
+      dbg('api', 'Server token refreshed');
+    }
+  }).catch(function() {
+    dbg('error', 'Server re-auth failed');
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -831,6 +1096,11 @@ function getHeaders() {
 // ---------------------------------------------------------------------------
 function startSession() {
   startError.classList.add('hidden');
+  // Re-auth first to handle server restarts / Fly.io machine switches
+  ensureServerAuth().then(function() { _doStartSession(); });
+}
+
+function _doStartSession() {
   var useServer = document.getElementById('use-server') && document.getElementById('use-server').checked && serverToken;
 
   if (!useServer && !document.getElementById('s-runway-key').value.trim()) {
@@ -864,6 +1134,10 @@ function startSession() {
   muteBtn.classList.remove('hidden');
   while (logBox.firstChild) logBox.removeChild(logBox.firstChild);
   setStatus('working', 'Creating session...');
+
+  // Ensure debug window is open and ready
+  if (debugEnabled && (!debugWindow || debugWindow.closed)) openDebugWindow();
+  dbg('api', 'Session starting — mode: ' + currentMode + ' avatarType: ' + avatarType + ' avatarId: ' + avatarId);
 
   fetch('/api/start', {
     method: 'POST',
@@ -980,156 +1254,353 @@ function startDailyBridge(livekitCreds) {
   var charName = document.getElementById('bot-name').value.trim() || 'ClubAI Character';
   setStatus('working', 'Joining Daily.co room...');
   addLog('Joining Daily.co room: ' + roomUrl);
+  dbg('daily', 'Starting Daily.co bridge', { room: roomUrl, charName: charName });
+
+  // Hidden elements to render avatar tracks before capturing
+  var avatarVideoEl = document.createElement('video');
+  avatarVideoEl.autoplay = true;
+  avatarVideoEl.playsInline = true;
+  avatarVideoEl.muted = true;
+  avatarVideoEl.style.cssText = 'position:fixed;top:-9999px;width:640px;height:360px;';
+  document.body.appendChild(avatarVideoEl);
+
+  var avatarAudioEl = document.createElement('audio');
+  avatarAudioEl.autoplay = true;
+  avatarAudioEl.style.display = 'none';
+  document.body.appendChild(avatarAudioEl);
 
   dailyCallObject = window.DailyIframe.createCallObject({ audioSource: false, videoSource: false });
+
+  // Daily.co debug events
+  dailyCallObject.on('joined-meeting', function() { dbg('daily', 'Joined meeting'); dbgState('daily.state', 'joined'); });
+  dailyCallObject.on('left-meeting', function() { dbg('daily', 'Left meeting'); dbgState('daily.state', 'left'); });
+  dailyCallObject.on('participant-joined', function(e) { dbg('daily', 'Participant joined: ' + (e.participant.user_name || e.participant.session_id)); });
+  dailyCallObject.on('participant-updated', function(e) {
+    var p = e.participant;
+    if (p.local) {
+      dbg('daily', 'Local participant updated — audio: ' + (p.tracks && p.tracks.audio ? p.tracks.audio.state : 'n/a') + ' video: ' + (p.tracks && p.tracks.video ? p.tracks.video.state : 'n/a'));
+    }
+  });
+  dailyCallObject.on('track-started', function(e) { dbg('daily', 'Track started: ' + e.track.kind + ' from ' + (e.participant ? e.participant.user_name : 'unknown')); });
+
   dailyCallObject.join({ url: roomUrl, userName: charName })
     .then(function() {
       addLog('Connected to Daily.co as "' + charName + '"');
+      dbg('daily', 'Join successful');
       setStatus('working', 'Connecting to character...');
+
       var LK = window.LivekitClient;
       livekitRoom = new LK.Room({ adaptiveStream: false, dynacast: false });
-      livekitRoom.on(LK.RoomEvent.TrackSubscribed, function(track) {
+
+      livekitRoom.on(LK.RoomEvent.TrackSubscribed, function(track, pub, participant) {
+        var who = participant ? participant.identity : 'unknown';
+        dbg('lk', 'Track subscribed: ' + track.kind + ' from ' + who + ' readyState=' + track.mediaStreamTrack.readyState);
+
         if (track.kind === LK.Track.Kind.Video) {
           addLog('Character video received \u2192 publishing to Daily.co');
-          var el = track.attach();
-          if (el.captureStream) {
-            var vt = el.captureStream().getVideoTracks()[0];
-            if (vt) dailyCallObject.startCustomTrack({ track: vt, trackName: 'character-video' }).then(function() { addLog('Character video live in room'); }).catch(function(e) { addLog('Video error: ' + e.message, 'error'); });
-          }
+          dbg('lk', 'Attaching video to hidden element');
+          track.attach(avatarVideoEl);
+
+          avatarVideoEl.onplaying = function() {
+            avatarVideoEl.onplaying = null;
+            dbg('lk', 'Avatar video playing: ' + avatarVideoEl.videoWidth + 'x' + avatarVideoEl.videoHeight);
+            try {
+              var capturedStream = avatarVideoEl.captureStream();
+              var vt = capturedStream.getVideoTracks()[0];
+              if (vt) {
+                dbg('daily', 'Publishing captured video track: readyState=' + vt.readyState + ' enabled=' + vt.enabled);
+                dbgTrack(vt.id, 'Daily:avatar:video', 'video', 'captureStream');
+                dailyCallObject.startCustomTrack({ track: vt, trackName: 'character-video' })
+                  .then(function() { addLog('Character video live in room'); dbg('daily', 'Video published to Daily.co'); dbgState('daily.videoPublished', true); })
+                  .catch(function(e) { addLog('Video error: ' + e.message, 'error'); dbg('error', 'Daily video publish failed: ' + e.message); });
+              } else {
+                dbg('error', 'No video track from captureStream');
+              }
+            } catch(e) {
+              dbg('error', 'Video captureStream failed: ' + e.message);
+              addLog('Video capture failed: ' + e.message, 'error');
+            }
+          };
+          // Fallback
+          setTimeout(function() {
+            if (!avatarVideoEl.onplaying) return; // already fired
+            dbg('warn', 'Video onplaying fallback after 5s');
+            avatarVideoEl.onplaying = null;
+            try {
+              var cs = avatarVideoEl.captureStream();
+              var vt = cs.getVideoTracks()[0];
+              if (vt) {
+                dbg('daily', 'Fallback: publishing video track');
+                dailyCallObject.startCustomTrack({ track: vt, trackName: 'character-video' })
+                  .then(function() { addLog('Character video live (fallback)'); })
+                  .catch(function(e) { addLog('Video error: ' + e.message, 'error'); });
+              }
+            } catch(e) { dbg('error', 'Fallback captureStream failed: ' + e.message); }
+          }, 5000);
         }
+
         if (track.kind === LK.Track.Kind.Audio) {
           addLog('Character audio received \u2192 publishing to Daily.co');
-          var ae = track.attach();
-          if (ae.captureStream) {
-            var at = ae.captureStream().getAudioTracks()[0];
-            if (at) dailyCallObject.startCustomTrack({ track: at, trackName: 'character-audio', mode: 'music' }).then(function() { addLog('Character audio live in room'); }).catch(function(e) { addLog('Audio error: ' + e.message, 'error'); });
-          }
+          dbg('lk', 'Attaching audio to hidden element');
+          track.attach(avatarAudioEl);
+          setTimeout(function() {
+            try {
+              var capturedStream = avatarAudioEl.captureStream();
+              var at = capturedStream.getAudioTracks()[0];
+              if (at) {
+                dbg('daily', 'Publishing captured audio track: readyState=' + at.readyState);
+                dailyCallObject.startCustomTrack({ track: at, trackName: 'character-audio', mode: 'music' })
+                  .then(function() { addLog('Character audio live in room'); dbg('daily', 'Audio published to Daily.co'); })
+                  .catch(function(e) { addLog('Audio error: ' + e.message, 'error'); dbg('error', 'Daily audio publish failed: ' + e.message); });
+              }
+            } catch(e) { dbg('error', 'Audio captureStream failed: ' + e.message); }
+          }, 500);
         }
       });
-      livekitRoom.on(LK.RoomEvent.Disconnected, function() { addLog('LiveKit disconnected'); stopSession(); });
+
+      livekitRoom.on(LK.RoomEvent.Disconnected, function() { dbg('lk', 'Disconnected'); addLog('LiveKit disconnected'); stopSession(); });
       return livekitRoom.connect(livekitCreds.url, livekitCreds.token);
     })
     .then(function() {
       addLog('Connected to LiveKit room');
-      addLog('Bridging audio: Daily.co \u2192 LiveKit');
-      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
-        .then(function(s) { livekitRoom.localParticipant.publishTrack(s.getAudioTracks()[0], { name: 'meeting-audio' }); addLog('Meeting audio published'); })
-        .catch(function(e) { addLog('Audio capture error: ' + e.message, 'error'); });
+      dbg('lk', 'Room state: ' + livekitRoom.state + ' participants: ' + livekitRoom.remoteParticipants.size);
+
+      // Forward Daily.co participants' audio to LiveKit (so avatar hears them)
+      // Do NOT use getUserMedia — that would capture avatar audio output and create a feedback loop
+      addLog('Bridging audio: Daily.co participants \u2192 LiveKit');
+      dbg('daily', 'Setting up audio forwarding from Daily.co to LiveKit');
+      dailyCallObject.on('track-started', function(e) {
+        if (e.track && e.track.kind === 'audio' && e.participant && !e.participant.local) {
+          var pName = e.participant.user_name || e.participant.session_id;
+          dbg('daily', 'Remote audio track from "' + pName + '" \u2192 publishing to LiveKit');
+          addLog('Audio from "' + pName + '" \u2192 character');
+          livekitRoom.localParticipant.publishTrack(e.track, { name: 'daily-audio-' + pName })
+            .then(function() { dbg('lk', 'Daily audio "' + pName + '" published to LiveKit'); })
+            .catch(function(err) { dbg('error', 'Failed to publish Daily audio: ' + err.message); });
+        }
+      });
+
       setStatus('active', 'Character is live!');
       addLog('Character is live in the room!', 'success');
       startSessionTimer();
       startBtn.disabled = true;
     })
-    .catch(function(err) { setStatus('error', 'Bridge failed'); addLog('Bridge error: ' + err.message, 'error'); resetControls(); });
+    .catch(function(err) { setStatus('error', 'Bridge failed'); addLog('Bridge error: ' + err.message, 'error'); dbg('error', 'Daily bridge failed: ' + err.message); resetControls(); });
 }
 
 // ---------------------------------------------------------------------------
-// VDO.Ninja bridge (SDK)
+// VDO.Ninja bridge (SDK with salt fix)
+// ---------------------------------------------------------------------------
+// Key: salt must be "vdo.ninja" to match the VDO.Ninja web UI's room hashing.
+// Stream IDs must use underscores, not hyphens.
+// No announce() needed after publish().
 // ---------------------------------------------------------------------------
 function startVdoNinjaBridge(livekitCreds) {
-  var roomName = document.getElementById('vdoninja-room').value.trim();
+  var roomName = document.getElementById('vdoninja-room').value.trim().replace(/-/g, '_');
   var roomPw = document.getElementById('vdoninja-password').value;
-  var streamId = document.getElementById('vdoninja-streamid').value.trim() || 'clubai-character';
+  var streamId = (document.getElementById('vdoninja-streamid').value.trim() || 'clubai_character').replace(/-/g, '_');
   setStatus('working', 'Joining VDO.Ninja room...');
   addLog('Connecting to VDO.Ninja room: ' + roomName);
-
-  // Collected tracks from LiveKit to publish to VDO.Ninja
-  var avatarTracks = [];
+  dbg('vdo', 'Starting VDO.Ninja bridge (SDK + salt fix)', { room: roomName, streamId: streamId, salt: 'vdo.ninja' });
 
   var LK = window.LivekitClient;
   livekitRoom = new LK.Room({ adaptiveStream: false, dynacast: false });
 
-  livekitRoom.on(LK.RoomEvent.TrackSubscribed, function(track) {
-    if (track.kind === LK.Track.Kind.Video) {
-      addLog('Character video received from LiveKit');
-      var el = track.attach();
-      el.style.display = 'none';
+  // Hidden elements to render avatar tracks before captureStream
+  var avatarVideoEl = document.createElement('video');
+  avatarVideoEl.autoplay = true;
+  avatarVideoEl.playsInline = true;
+  avatarVideoEl.muted = true;
+  avatarVideoEl.style.cssText = 'position:fixed;top:-9999px;width:640px;height:360px;';
+  document.body.appendChild(avatarVideoEl);
+
+  var avatarAudioEl = document.createElement('audio');
+  avatarAudioEl.autoplay = true;
+  avatarAudioEl.style.display = 'none';
+  document.body.appendChild(avatarAudioEl);
+
+  var avatarVideoTrack = null;
+  var avatarAudioTrack = null;
+
+  // Step 1: Create SDK with correct salt to match vdo.ninja web UI
+  // Salt MUST be "vdo.ninja" — otherwise room/stream ID hashing won't match the web UI
+  vdoNinja = new VDONinjaSDK({ salt: 'vdo.ninja' });
+  console.log('[VDO] SDK version:', VDONinjaSDK.VERSION || vdoNinja.version, 'salt:', vdoNinja.salt);
+  dbg('vdo', 'SDK created — version: ' + (vdoNinja.version || 'unknown') + ' salt: ' + vdoNinja.salt);
+
+  // VDO.Ninja events
+  vdoNinja.addEventListener('peerConnected', function(e) {
+    var uuid = e.detail ? e.detail.uuid : 'unknown';
+    dbg('vdo', 'Peer connected: ' + uuid);
+    addLog('VDO.Ninja peer connected');
+  });
+  vdoNinja.addEventListener('peerDisconnected', function(e) {
+    dbg('vdo', 'Peer disconnected: ' + (e.detail ? e.detail.uuid : 'unknown'));
+  });
+  vdoNinja.addEventListener('error', function(e) {
+    dbg('error', 'VDO.Ninja error', e.detail);
+    addLog('VDO.Ninja error: ' + JSON.stringify(e.detail), 'error');
+  });
+
+  // Forward incoming VDO.Ninja participant audio to LiveKit
+  vdoNinja.addEventListener('track', function(e) {
+    if (!e.detail || !e.detail.track) return;
+    var t = e.detail.track;
+    var sid = e.detail.streamID || 'unknown';
+    dbg('vdo', 'Track from peer: kind=' + t.kind + ' streamID=' + sid + ' readyState=' + t.readyState);
+    if (t.kind === 'audio') {
+      addLog('VDO.Ninja audio from "' + sid + '" \u2192 character');
+      var el = document.createElement('audio');
+      el.srcObject = new MediaStream([t]);
+      el.autoplay = true;
+      el.className = 'vdo-remote-audio';
       document.body.appendChild(el);
-      // Get the raw MediaStreamTrack for VDO.Ninja
-      avatarTracks.push(track.mediaStreamTrack);
-      tryPublishToVdo();
-    }
-    if (track.kind === LK.Track.Kind.Audio) {
-      addLog('Character audio received from LiveKit');
-      var ae = track.attach();
-      ae.style.display = 'none';
-      document.body.appendChild(ae);
-      avatarTracks.push(track.mediaStreamTrack);
-      tryPublishToVdo();
+      if (livekitRoom && livekitRoom.localParticipant) {
+        livekitRoom.localParticipant.publishTrack(t, { name: 'vdo_audio_' + sid })
+          .then(function() { dbg('lk', 'VDO audio forwarded to LiveKit'); })
+          .catch(function(err) { dbg('error', 'VDO audio forward failed: ' + err.message); });
+      }
     }
   });
 
-  livekitRoom.on(LK.RoomEvent.Disconnected, function() { addLog('LiveKit disconnected'); stopSession(); });
-
-  var vdoPublished = false;
-
-  function tryPublishToVdo() {
-    // Wait until we have at least one track (ideally video + audio)
-    if (vdoPublished || avatarTracks.length === 0) return;
-    // Small delay to collect both tracks
-    setTimeout(function() {
-      if (vdoPublished) return;
-      vdoPublished = true;
-
-      var stream = new MediaStream(avatarTracks);
-      addLog('Publishing ' + avatarTracks.length + ' track(s) to VDO.Ninja room: ' + roomName);
-
-      vdoNinja = new VDONinjaSDK();
-      vdoNinja.connect().then(function() {
-        var joinOpts = { room: roomName };
-        if (roomPw) joinOpts.password = roomPw;
-        return vdoNinja.joinRoom(joinOpts);
-      }).then(function() {
-        addLog('Joined VDO.Ninja room');
-        return vdoNinja.publish(stream, { streamID: streamId });
-      }).then(function() {
-        addLog('Character stream published as "' + streamId + '"');
-        showVdoLinks(roomName, roomPw, streamId);
-        setStatus('active', 'Character is live!');
-        addLog('Character is live in the stream!', 'success');
-        startSessionTimer();
-        startBtn.disabled = true;
-      }).catch(function(err) {
-        addLog('VDO.Ninja error: ' + err.message, 'error');
-        setStatus('error', 'VDO.Ninja bridge failed');
-        resetControls();
-      });
-    }, 500);
-  }
-
-  // Connect to LiveKit
-  livekitRoom.connect(livekitCreds.url, livekitCreds.token)
+  // Connect VDO.Ninja first, then LiveKit
+  vdoNinja.connect()
     .then(function() {
-      addLog('Connected to LiveKit room');
-      // Also capture room audio for the character to hear
-      addLog('Bridging audio: VDO.Ninja \u2192 LiveKit');
-      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
-        .then(function(s) { livekitRoom.localParticipant.publishTrack(s.getAudioTracks()[0], { name: 'meeting-audio' }); addLog('Meeting audio published to character'); })
-        .catch(function(e) { addLog('Audio capture error: ' + e.message, 'error'); });
-
-      // Subscribe to VDO.Ninja room audio (so we hear other participants)
-      if (vdoNinja) {
-        vdoNinja.addEventListener('track', function(e) {
-          if (e.detail && e.detail.track && e.detail.track.kind === 'audio') {
-            addLog('Receiving audio from VDO.Ninja participant: ' + (e.detail.streamID || 'unknown'));
-            var remoteAudio = document.createElement('audio');
-            remoteAudio.srcObject = new MediaStream([e.detail.track]);
-            remoteAudio.autoplay = true;
-            remoteAudio.className = 'vdo-remote-audio';
-            document.body.appendChild(remoteAudio);
-          }
-        });
-      }
+      dbg('vdo', 'Signaling connected');
+      addLog('Connected to VDO.Ninja signaling');
+      var joinOpts = { room: roomName };
+      if (roomPw) joinOpts.password = roomPw;
+      dbg('vdo', 'Joining room with opts: ' + JSON.stringify(joinOpts) + ' SDK salt: ' + vdoNinja.salt);
+      console.log('[VDO] joinRoom opts:', joinOpts, 'salt:', vdoNinja.salt, 'state:', vdoNinja.state);
+      return vdoNinja.joinRoom(joinOpts);
     })
-    .catch(function(err) { setStatus('error', 'LiveKit failed'); addLog('LiveKit error: ' + err.message, 'error'); resetControls(); });
+    .then(function() {
+      dbg('vdo', 'Joined room: ' + roomName);
+      addLog('Joined VDO.Ninja room: ' + roomName);
+      setStatus('working', 'Connecting to character...');
+
+      // LiveKit events
+      livekitRoom.on(LK.RoomEvent.TrackSubscribed, function(track, pub, participant) {
+        var who = participant ? participant.identity : 'unknown';
+        dbg('lk', 'Track subscribed: ' + track.kind + ' from ' + who);
+
+        if (track.kind === LK.Track.Kind.Video) {
+          addLog('Character video received');
+          track.attach(avatarVideoEl);
+          avatarVideoEl.onplaying = function() {
+            avatarVideoEl.onplaying = null;
+            dbg('lk', 'Avatar video playing: ' + avatarVideoEl.videoWidth + 'x' + avatarVideoEl.videoHeight);
+            try {
+              avatarVideoTrack = avatarVideoEl.captureStream().getVideoTracks()[0];
+              dbg('track', 'Captured video: readyState=' + avatarVideoTrack.readyState);
+              addLog('Avatar video captured');
+              tryPublishAvatar();
+            } catch(e) {
+              dbg('error', 'Video captureStream failed: ' + e.message);
+              addLog('Video capture failed: ' + e.message, 'error');
+            }
+          };
+          // Fallback after 5s
+          setTimeout(function() {
+            if (!avatarVideoTrack && avatarVideoEl.videoWidth > 0) {
+              avatarVideoEl.onplaying = null;
+              try { avatarVideoTrack = avatarVideoEl.captureStream().getVideoTracks()[0]; if (avatarVideoTrack) tryPublishAvatar(); } catch(e) {}
+            }
+          }, 5000);
+        }
+
+        if (track.kind === LK.Track.Kind.Audio) {
+          addLog('Character audio received');
+          track.attach(avatarAudioEl);
+          setTimeout(function() {
+            try {
+              avatarAudioTrack = avatarAudioEl.captureStream().getAudioTracks()[0];
+              dbg('track', 'Captured audio: readyState=' + avatarAudioTrack.readyState);
+              addLog('Avatar audio captured');
+              tryPublishAvatar();
+            } catch(e) {
+              dbg('error', 'Audio captureStream failed: ' + e.message);
+            }
+          }, 500);
+        }
+      });
+
+      livekitRoom.on(LK.RoomEvent.Disconnected, function() { addLog('LiveKit disconnected'); stopSession(); });
+      return livekitRoom.connect(livekitCreds.url, livekitCreds.token);
+    })
+    .then(function() {
+      addLog('Connected to LiveKit');
+      dbg('lk', 'Room state: ' + livekitRoom.state + ' participants: ' + livekitRoom.remoteParticipants.size);
+
+      // Capture browser mic and send to LiveKit so avatar can hear us.
+      // To prevent feedback loop: mute the avatar's local audio playback —
+      // the avatar's audio goes to VDO.Ninja via the published tracks, not local speakers.
+      addLog('Capturing mic for character...');
+      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+        .then(function(s) {
+          var micTrack = s.getAudioTracks()[0];
+          dbg('lk', 'Mic captured: readyState=' + micTrack.readyState);
+          livekitRoom.localParticipant.publishTrack(micTrack, { name: 'meeting_audio' });
+          addLog('Mic published to character');
+          // Mute avatar local audio to prevent feedback (avatar audio goes to VDO.Ninja, not speakers)
+          avatarAudioEl.muted = true;
+          document.querySelectorAll('.vdo-remote-audio').forEach(function(el) { el.muted = true; });
+          dbg('lk', 'Avatar local audio muted to prevent feedback');
+          addLog('Avatar audio muted locally (plays through VDO.Ninja only)');
+        })
+        .catch(function(e) {
+          dbg('error', 'Mic capture failed: ' + e.message);
+          addLog('Mic error: ' + e.message, 'error');
+        });
+    })
+    .catch(function(err) {
+      dbg('error', 'Bridge failed: ' + err.message);
+      setStatus('error', 'Bridge failed');
+      addLog('Error: ' + err.message, 'error');
+      resetControls();
+    });
+
+  // Publish avatar to VDO.Ninja once tracks are captured
+  var published = false;
+  function tryPublishAvatar() {
+    if (published) return;
+    if (!avatarVideoTrack && !avatarAudioTrack) return;
+    setTimeout(function() {
+      if (published) return;
+      published = true;
+      var tracks = [];
+      if (avatarVideoTrack) tracks.push(avatarVideoTrack);
+      if (avatarAudioTrack) tracks.push(avatarAudioTrack);
+      var stream = new MediaStream(tracks);
+      dbg('vdo', 'Publishing ' + tracks.length + ' tracks, stream.active=' + stream.active);
+      addLog('Publishing avatar to VDO.Ninja...');
+
+      vdoNinja.publish(stream, { streamID: streamId })
+        .then(function() {
+          dbg('vdo', 'Published as "' + streamId + '"');
+          addLog('Character published as "' + streamId + '"');
+          showVdoLinks(roomName, roomPw, streamId);
+          setStatus('active', 'Character is live!');
+          addLog('Character is live in the stream!', 'success');
+          startSessionTimer();
+          startBtn.disabled = true;
+        })
+        .catch(function(err) {
+          dbg('error', 'Publish failed: ' + err.message);
+          addLog('Publish error: ' + err.message, 'error');
+          setStatus('error', 'Publish failed');
+          resetControls();
+        });
+    }, 800);
+  }
 }
 
 function showVdoLinks(roomName, roomPw, streamId) {
   var base = document.getElementById('s-vdoninja-server').value.trim() || 'https://vdo.ninja';
   var pwParam = roomPw ? '&password=' + encodeURIComponent(roomPw) : '';
-  document.getElementById('vdo-director-link').href = base + '/?director=' + encodeURIComponent(roomName) + pwParam;
+  document.getElementById('vdo-director-link').href = base + '/?director=' + encodeURIComponent(roomName) + '&showdirector' + pwParam;
   document.getElementById('vdo-guest-link').href = base + '/?room=' + encodeURIComponent(roomName) + '&push' + pwParam;
-  document.getElementById('vdo-solo-link').href = base + '/?room=' + encodeURIComponent(roomName) + '&view=' + encodeURIComponent(streamId) + '&solo' + pwParam;
+  document.getElementById('vdo-solo-link').href = base + '/?scene&room=' + encodeURIComponent(roomName) + '&view=' + encodeURIComponent(streamId) + pwParam;
   document.getElementById('vdo-links').classList.remove('hidden');
 }
 
@@ -1195,7 +1666,30 @@ function toggleMute() {
   if (!currentSessionId) return;
   isMuted = !isMuted;
   muteBtn.textContent = isMuted ? 'Unmute Character' : 'Mute Character';
-  fetch('/api/sessions/' + currentSessionId + '/mute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ muted: isMuted }) }).catch(function() {});
+  dbg('api', 'Mute toggled: ' + isMuted + ' mode: ' + currentMode);
+
+  if (currentMode === 'recall') {
+    // Recall mode: mute via server → WebSocket relay to bot page
+    fetch('/api/sessions/' + currentSessionId + '/mute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ muted: isMuted }) }).catch(function() {});
+  } else {
+    // Daily.co / VDO.Ninja: mute the avatar's audio output locally
+    // Mute all audio elements playing avatar audio
+    document.querySelectorAll('audio').forEach(function(el) {
+      el.muted = isMuted;
+    });
+    // Also mute/unmute any custom audio tracks published to Daily.co
+    if (dailyCallObject && isMuted) {
+      dailyCallObject.stopCustomTrack('character-audio').catch(function() {});
+    }
+    // For LiveKit: disable the audio track from being published
+    if (livekitRoom && livekitRoom.remoteParticipants) {
+      livekitRoom.remoteParticipants.forEach(function(p) {
+        p.audioTrackPublications.forEach(function(pub) {
+          if (pub.track) pub.track.mediaStreamTrack.enabled = !isMuted;
+        });
+      });
+    }
+  }
   addLog(isMuted ? 'Character muted' : 'Character unmuted');
 }
 

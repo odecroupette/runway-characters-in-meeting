@@ -30,9 +30,9 @@ const PUBLIC_URL =
       ? `https://${process.env.FLY_APP_NAME}.fly.dev`
       : `http://localhost:${PORT}`);
 
-const WS_PUBLIC_URL = PUBLIC_URL.replace(/^https/, "wss").replace(
-  /^http/,
-  "ws"
+const WS_PUBLIC_URL = PUBLIC_URL.replace(/^https:\/\//, "wss://").replace(
+  /^http:\/\//,
+  "ws://"
 );
 
 // Recall base URL is computed per-request now (supports client-side keys)
@@ -659,6 +659,7 @@ function sleep(ms) {
 
 httpServer.listen(parseInt(PORT), () => {
   console.log(`\n  ClubAI Character Meet running on http://localhost:${PORT}`);
+  console.log(`  PUBLIC_URL raw: "${PUBLIC_URL}"`);
   console.log(`  Public URL: ${PUBLIC_URL}`);
   console.log(`  WebSocket URL: ${WS_PUBLIC_URL}`);
   console.log(`  Recall region: ${SERVER_RECALL_REGION || RECALL_REGION || 'not set'}\n`);

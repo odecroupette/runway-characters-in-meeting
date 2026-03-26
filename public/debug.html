@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ClubAI Debug Console</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    background: #0a0c14;
+    color: #c0c8d8;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; background: #12151f; border-bottom: 1px solid #1e2235;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .header h1 { font-size: 13px; font-weight: 700; color: #FF1A75; }
+  .header-actions { display: flex; gap: 8px; }
+  .header-btn {
+    padding: 4px 10px; border-radius: 4px; border: 1px solid #2a2d42;
+    background: transparent; color: #8890a4; font-size: 11px; cursor: pointer;
+    font-family: inherit;
+  }
+  .header-btn:hover { border-color: #FF1A75; color: #fff; }
+  .tabs {
+    display: flex; border-bottom: 1px solid #1e2235; background: #0e1019;
+    position: sticky; top: 33px; z-index: 10;
+  }
+  .tab {
+    padding: 8px 16px; font-size: 11px; font-weight: 600; cursor: pointer;
+    color: #5a6178; border-bottom: 2px solid transparent;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: inherit;
+  }
+  .tab:hover { color: #8890a4; }
+  .tab.active { color: #FF1A75; border-bottom-color: #FF1A75; }
+  .tab .count {
+    display: inline-block; min-width: 16px; padding: 0 4px; margin-left: 4px;
+    background: #1e2235; border-radius: 8px; font-size: 10px; text-align: center;
+    color: #5a6178;
+  }
+  .tab.active .count { background: rgba(255, 26, 117, 0.15); color: #FF1A75; }
+  .panel { display: none; padding: 0; }
+  .panel.active { display: block; }
+  .log-entry {
+    padding: 4px 12px; border-bottom: 1px solid #12151f;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .log-entry:hover { background: rgba(255, 255, 255, 0.02); }
+  .log-time { color: #3a3f52; flex-shrink: 0; width: 85px; }
+  .log-tag {
+    flex-shrink: 0; padding: 1px 6px; border-radius: 3px; font-size: 10px;
+    font-weight: 600; text-transform: uppercase; min-width: 50px; text-align: center;
+  }
+  .log-tag.api { background: rgba(0, 180, 255, 0.1); color: #00B4FF; }
+  .log-tag.lk { background: rgba(139, 92, 246, 0.1); color: #8B5CF6; }
+  .log-tag.vdo { background: rgba(34, 197, 94, 0.1); color: #22C55E; }
+  .log-tag.daily { background: rgba(234, 179, 8, 0.1); color: #EAB308; }
+  .log-tag.track { background: rgba(255, 26, 117, 0.1); color: #FF1A75; }
+  .log-tag.error { background: rgba(239, 68, 68, 0.15); color: #EF4444; }
+  .log-tag.warn { background: rgba(234, 179, 8, 0.1); color: #EAB308; }
+  .log-msg { flex: 1; word-break: break-all; }
+  .log-msg .key { color: #8B5CF6; }
+  .log-msg .val { color: #22C55E; }
+  .log-msg .url { color: #00B4FF; }
+  .log-msg .err { color: #EF4444; }
+  /* Track monitor */
+  .track-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; padding: 12px; }
+  .track-card {
+    background: #12151f; border: 1px solid #1e2235; border-radius: 6px; padding: 10px;
+  }
+  .track-card .track-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .track-card .track-label { font-weight: 600; color: #fff; }
+  .track-card .track-state { font-size: 10px; padding: 2px 6px; border-radius: 3px; }
+  .track-state.live { background: rgba(34, 197, 94, 0.15); color: #22C55E; }
+  .track-state.ended { background: rgba(239, 68, 68, 0.15); color: #EF4444; }
+  .track-card .track-detail { color: #5a6178; font-size: 11px; }
+  /* State panel */
+  .state-section { padding: 12px; border-bottom: 1px solid #1e2235; }
+  .state-title { font-weight: 700; color: #FF1A75; margin-bottom: 8px; text-transform: uppercase; font-size: 11px; }
+  .state-row { display: flex; gap: 8px; padding: 2px 0; }
+  .state-key { color: #5a6178; min-width: 140px; }
+  .state-val { color: #c0c8d8; }
+  .state-val.ok { color: #22C55E; }
+  .state-val.bad { color: #EF4444; }
+  .state-val.pending { color: #EAB308; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>ClubAI Debug Console</h1>
+  <div class="header-actions">
+    <button class="header-btn" onclick="clearAll()">Clear</button>
+    <button class="header-btn" onclick="exportLogs()">Export</button>
+    <button class="header-btn" onclick="refreshState()">Refresh State</button>
+  </div>
+</div>
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('all')" id="tab-all">All <span class="count" id="count-all">0</span></button>
+  <button class="tab" onclick="switchTab('api')" id="tab-api">API <span class="count" id="count-api">0</span></button>
+  <button class="tab" onclick="switchTab('livekit')" id="tab-livekit">LiveKit <span class="count" id="count-lk">0</span></button>
+  <button class="tab" onclick="switchTab('vdo')" id="tab-vdo">VDO.Ninja <span class="count" id="count-vdo">0</span></button>
+  <button class="tab" onclick="switchTab('daily')" id="tab-daily">Daily.co <span class="count" id="count-daily">0</span></button>
+  <button class="tab" onclick="switchTab('tracks')" id="tab-tracks">Tracks</button>
+  <button class="tab" onclick="switchTab('state')" id="tab-state">State</button>
+</div>
+<div class="panel active" id="panel-all"></div>
+<div class="panel" id="panel-api"></div>
+<div class="panel" id="panel-livekit"></div>
+<div class="panel" id="panel-vdo"></div>
+<div class="panel" id="panel-daily"></div>
+<div class="panel" id="panel-tracks"><div class="track-grid" id="track-grid"></div></div>
+<div class="panel" id="panel-state" id="state-panel"></div>
+
+<script>
+var counts = { all: 0, api: 0, lk: 0, vdo: 0, daily: 0 };
+var allLogs = [];
+var trackedTracks = {};
+var currentState = {};
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+  var tabMap = { all: 'tab-all', api: 'tab-api', livekit: 'tab-livekit', vdo: 'tab-vdo', daily: 'tab-daily', tracks: 'tab-tracks', state: 'tab-state' };
+  document.getElementById(tabMap[name]).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'tracks') refreshTracks();
+  if (name === 'state') refreshState();
+}
+
+function addEntry(category, tag, message, details) {
+  var ts = new Date().toISOString().slice(11, 23);
+  var entry = { ts: ts, category: category, tag: tag, message: message, details: details };
+  allLogs.push(entry);
+
+  var html = '<div class="log-entry">'
+    + '<span class="log-time">' + ts + '</span>'
+    + '<span class="log-tag ' + tag + '">' + tag + '</span>'
+    + '<span class="log-msg">' + escapeHtml(message);
+  if (details) html += ' <span class="val">' + escapeHtml(typeof details === 'string' ? details : JSON.stringify(details)) + '</span>';
+  html += '</span></div>';
+
+  var allPanel = document.getElementById('panel-all');
+  allPanel.insertAdjacentHTML('beforeend', html);
+  counts.all++;
+
+  var panelMap = { api: 'panel-api', lk: 'panel-livekit', vdo: 'panel-vdo', daily: 'panel-daily', error: 'panel-all', warn: 'panel-all', track: 'panel-all' };
+  var targetPanel = panelMap[tag];
+  if (targetPanel && targetPanel !== 'panel-all') {
+    document.getElementById(targetPanel).insertAdjacentHTML('beforeend', html);
+  }
+
+  if (tag === 'api') counts.api++;
+  if (tag === 'lk') counts.lk++;
+  if (tag === 'vdo') counts.vdo++;
+  if (tag === 'daily') counts.daily++;
+
+  document.getElementById('count-all').textContent = counts.all;
+  document.getElementById('count-api').textContent = counts.api;
+  document.getElementById('count-lk').textContent = counts.lk;
+  document.getElementById('count-vdo').textContent = counts.vdo;
+  document.getElementById('count-daily').textContent = counts.daily;
+
+  // Auto-scroll
+  var activePanel = document.querySelector('.panel.active');
+  if (activePanel) activePanel.scrollTop = activePanel.scrollHeight;
+}
+
+function trackMedia(id, label, kind, source, trackObj) {
+  trackedTracks[id] = { label: label, kind: kind, source: source, track: trackObj, addedAt: new Date().toISOString() };
+}
+
+function refreshTracks() {
+  var grid = document.getElementById('track-grid');
+  grid.textContent = '';
+  Object.keys(trackedTracks).forEach(function(id) {
+    var t = trackedTracks[id];
+    var state = t.track ? t.track.readyState : 'unknown';
+    var enabled = t.track ? t.track.enabled : false;
+    var html = '<div class="track-card">'
+      + '<div class="track-header"><span class="track-label">' + escapeHtml(t.label) + '</span>'
+      + '<span class="track-state ' + state + '">' + state + '</span></div>'
+      + '<div class="track-detail">Kind: ' + t.kind + '</div>'
+      + '<div class="track-detail">Source: ' + t.source + '</div>'
+      + '<div class="track-detail">Enabled: ' + enabled + '</div>'
+      + '<div class="track-detail">ID: ' + id.slice(0, 16) + '...</div>'
+      + '</div>';
+    grid.insertAdjacentHTML('beforeend', html);
+  });
+  if (Object.keys(trackedTracks).length === 0) {
+    grid.insertAdjacentHTML('beforeend', '<div style="padding:20px;color:#5a6178;">No tracks registered yet</div>');
+  }
+}
+
+function updateState(key, value) {
+  currentState[key] = value;
+}
+
+function refreshState() {
+  var panel = document.getElementById('panel-state');
+  panel.textContent = '';
+  var sections = {};
+  Object.keys(currentState).forEach(function(key) {
+    var parts = key.split('.');
+    var section = parts[0];
+    var prop = parts.slice(1).join('.');
+    if (!sections[section]) sections[section] = [];
+    sections[section].push({ key: prop, value: currentState[key] });
+  });
+  Object.keys(sections).forEach(function(section) {
+    var html = '<div class="state-section"><div class="state-title">' + escapeHtml(section) + '</div>';
+    sections[section].forEach(function(item) {
+      var valClass = '';
+      var v = String(item.value);
+      if (v === 'connected' || v === 'live' || v === 'true' || v === 'joined') valClass = 'ok';
+      else if (v === 'failed' || v === 'ended' || v === 'false' || v === 'error') valClass = 'bad';
+      else if (v === 'connecting' || v === 'loading') valClass = 'pending';
+      html += '<div class="state-row"><span class="state-key">' + escapeHtml(item.key) + '</span>'
+        + '<span class="state-val ' + valClass + '">' + escapeHtml(v) + '</span></div>';
+    });
+    html += '</div>';
+    panel.insertAdjacentHTML('beforeend', html);
+  });
+  if (Object.keys(currentState).length === 0) {
+    panel.insertAdjacentHTML('beforeend', '<div style="padding:20px;color:#5a6178;">No state data yet — start a session</div>');
+  }
+}
+
+function clearAll() {
+  allLogs = [];
+  counts = { all: 0, api: 0, lk: 0, vdo: 0, daily: 0 };
+  ['all', 'api', 'livekit', 'vdo', 'daily'].forEach(function(p) {
+    document.getElementById('panel-' + p).textContent = '';
+  });
+  Object.keys(counts).forEach(function(k) {
+    var el = document.getElementById('count-' + k);
+    if (el) el.textContent = '0';
+  });
+  trackedTracks = {};
+  currentState = {};
+}
+
+function exportLogs() {
+  var text = allLogs.map(function(l) {
+    return l.ts + ' [' + l.tag + '] ' + l.message + (l.details ? ' ' + JSON.stringify(l.details) : '');
+  }).join('\n');
+  var blob = new Blob([text], { type: 'text/plain' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'clubai-debug-' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + '.txt';
+  a.click();
+}
+
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.textContent;
+}
+
+// Listen for messages from parent window
+window.addEventListener('message', function(e) {
+  if (!e.data || !e.data.type) return;
+  if (e.data.type === 'debug-log') {
+    addEntry(e.data.category, e.data.tag, e.data.message, e.data.details);
+  }
+  if (e.data.type === 'debug-track') {
+    trackMedia(e.data.id, e.data.label, e.data.kind, e.data.source, null);
+    // We can't transfer MediaStreamTrack via postMessage, so we track metadata only
+    addEntry('track', 'track', 'Track registered: ' + e.data.label, { kind: e.data.kind, source: e.data.source, id: e.data.id });
+  }
+  if (e.data.type === 'debug-track-state') {
+    if (trackedTracks[e.data.id]) {
+      trackedTracks[e.data.id].readyState = e.data.readyState;
+      trackedTracks[e.data.id].enabled = e.data.enabled;
+    }
+  }
+  if (e.data.type === 'debug-state') {
+    updateState(e.data.key, e.data.value);
+  }
+});
+
+addEntry('system', 'api', 'Debug console ready — waiting for session events');
+</script>
+</body>
+</html>
