@@ -586,7 +586,8 @@ async function runSessionPipeline(
       { method: "POST", bearerToken: sessionKey }
     );
     session.liveKit = { url: creds.url, token: creds.token };
-    log(`LiveKit room: ${creds.roomName}`);
+    log(`LiveKit url: ${creds.url}, room: ${creds.roomName}`);
+    log(`Consume response keys: ${Object.keys(creds).join(", ")}`);
 
     if (session.mode === "recall") {
       session.status = "bot_joining";

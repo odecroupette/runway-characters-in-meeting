@@ -220,6 +220,18 @@ async function start() {
     dynacast: false,
   });
 
+  room.on(RoomEvent.ParticipantConnected, (participant) => {
+    reportToServer(`ParticipantConnected: ${participant.identity} (sid=${participant.sid})`);
+  });
+
+  room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+    reportToServer(`ParticipantDisconnected: ${participant.identity}`);
+  });
+
+  room.on(RoomEvent.TrackPublished, (publication, participant) => {
+    reportToServer(`TrackPublished: ${publication.trackName} kind=${publication.kind} from=${participant.identity}`);
+  });
+
   room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
     reportToServer(`TrackSubscribed: kind=${track.kind} name=${publication.trackName} from=${participant.identity}`);
     if (track.kind === Track.Kind.Video) {
@@ -237,8 +249,16 @@ async function start() {
     }
   });
 
+  room.on(RoomEvent.TrackSubscriptionFailed, (trackSid, participant) => {
+    reportToServer(`TrackSubscriptionFailed: trackSid=${trackSid} from=${participant.identity}`);
+  });
+
   room.on(RoomEvent.TrackUnsubscribed, (track) => {
     track.detach().forEach((el) => el.remove());
+  });
+
+  room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
+    reportToServer(`ConnectionQuality: ${participant.identity} → ${quality}`);
   });
 
   room.on(RoomEvent.Disconnected, () => {
@@ -261,6 +281,22 @@ async function start() {
   await room.connect(creds.url, creds.token);
   setStatus("Connected — waiting for avatar video...");
   reportToServer(`Room state: ${room.state}, participants: ${room.remoteParticipants.size}`);
+  reportToServer(`Local participant: ${room.localParticipant.identity} (sid=${room.localParticipant.sid})`);
+
+  // Log existing participants (avatar may already be connected)
+  room.remoteParticipants.forEach((p) => {
+    reportToServer(`Existing participant: ${p.identity} (sid=${p.sid}), tracks: ${p.trackPublications.size}`);
+  });
+
+  // Periodic participant check — avatar may join later
+  var checkCount = 0;
+  var participantCheck = setInterval(function() {
+    checkCount++;
+    reportToServer(`Participant check #${checkCount}: ${room.remoteParticipants.size} remote participants, room state: ${room.state}`);
+    if (room.remoteParticipants.size > 0 || checkCount >= 12) {
+      clearInterval(participantCheck);
+    }
+  }, 5000);
 
   // 3. Capture meeting audio and publish to LiveKit
   try {
@@ -275,9 +311,9 @@ async function start() {
     await room.localParticipant.publishTrack(audioTrack, {
       name: "meeting-audio",
     });
-    console.log("[bot] Meeting audio published to LiveKit");
+    reportToServer("Meeting audio published to LiveKit");
   } catch (err) {
-    console.warn("[bot] Could not capture meeting audio:", err.message);
+    reportToServer("getUserMedia FAILED: " + err.message);
   }
 
   // 4. Publish meeting video canvas as a video track to LiveKit
@@ -288,9 +324,9 @@ async function start() {
     await room.localParticipant.publishTrack(videoTrack, {
       name: "meeting-video",
     });
-    console.log("[bot] Meeting video canvas published to LiveKit");
+    reportToServer("Meeting video canvas published to LiveKit");
   } catch (err) {
-    console.warn("[bot] Could not publish meeting video:", err.message);
+    reportToServer("Canvas captureStream FAILED: " + err.message);
   }
 
   // 5. Connect to video relay to start receiving participant frames
