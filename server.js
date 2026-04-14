@@ -116,8 +116,8 @@ function getRecallCreds(req) {
 
 async function createRecallBot(recallCreds, meetingUrl, botName, botPageUrl, sessionId) {
   const displayName = botName || "ClubAI Character";
-  // Ensure wss:// protocol — PUBLIC_URL may not convert correctly on some platforms
-  const wsUrl = PUBLIC_URL.replace(/^https?:\/\//, "wss://");
+  // Ensure wss:// protocol — non-anchored replace to handle invisible leading chars in env vars
+  const wsUrl = PUBLIC_URL.replace("https://", "wss://").replace("http://", "wss://");
   return recallFetch(recallCreds, "/bot/", {
     method: "POST",
     body: {
@@ -592,7 +592,7 @@ async function runSessionPipeline(
       session.status = "bot_joining";
       const botPageUrl = `${PUBLIC_URL}/bot.html?session=${session.id}`;
       log(`Creating Recall bot → ${meetingUrl}`);
-      const wsRelayUrl = PUBLIC_URL.replace(/^https?:\/\//, "wss://");
+      const wsRelayUrl = PUBLIC_URL.replace("https://", "wss://").replace("http://", "wss://");
       log(`Video relay: ${wsRelayUrl}/ws/recall-video/${session.id}`);
       const bot = await createRecallBot(
         session.recall,
@@ -662,8 +662,9 @@ function sleep(ms) {
 
 httpServer.listen(parseInt(PORT), () => {
   console.log(`\n  ClubAI Character Meet running on http://localhost:${PORT}`);
-  console.log(`  PUBLIC_URL raw: "${PUBLIC_URL}"`);
+  console.log(`  PUBLIC_URL raw: "${PUBLIC_URL}" (len=${PUBLIC_URL.length}, first5codes=${[...PUBLIC_URL.slice(0,5)].map(c=>c.charCodeAt(0))})`);
   console.log(`  Public URL: ${PUBLIC_URL}`);
   console.log(`  WebSocket URL: ${WS_PUBLIC_URL}`);
+  console.log(`  WS test: "${PUBLIC_URL.replace("https://", "wss://")}"`);
   console.log(`  Recall region: ${SERVER_RECALL_REGION || RECALL_REGION || 'not set'}\n`);
 });
