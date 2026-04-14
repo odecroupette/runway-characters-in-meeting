@@ -116,6 +116,8 @@ function getRecallCreds(req) {
 
 async function createRecallBot(recallCreds, meetingUrl, botName, botPageUrl, sessionId) {
   const displayName = botName || "ClubAI Character";
+  // Ensure wss:// protocol — PUBLIC_URL may not convert correctly on some platforms
+  const wsUrl = PUBLIC_URL.replace(/^https?:\/\//, "wss://");
   return recallFetch(recallCreds, "/bot/", {
     method: "POST",
     body: {
@@ -144,7 +146,7 @@ async function createRecallBot(recallCreds, meetingUrl, botName, botPageUrl, ses
         realtime_endpoints: [
           {
             type: "websocket",
-            url: `${WS_PUBLIC_URL}/ws/recall-video/${sessionId}`,
+            url: `${wsUrl}/ws/recall-video/${sessionId}`,
             events: ["video_separate_png.data"],
           },
         ],
@@ -590,7 +592,8 @@ async function runSessionPipeline(
       session.status = "bot_joining";
       const botPageUrl = `${PUBLIC_URL}/bot.html?session=${session.id}`;
       log(`Creating Recall bot → ${meetingUrl}`);
-      log(`Video relay: ${WS_PUBLIC_URL}/ws/recall-video/${session.id}`);
+      const wsRelayUrl = PUBLIC_URL.replace(/^https?:\/\//, "wss://");
+      log(`Video relay: ${wsRelayUrl}/ws/recall-video/${session.id}`);
       const bot = await createRecallBot(
         session.recall,
         meetingUrl,
