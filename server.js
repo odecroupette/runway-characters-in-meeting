@@ -519,6 +519,24 @@ function handleVideoRelayConnection(ws, sessionId) {
 }
 
 // ---------------------------------------------------------------------------
+// Monitor Runway session status after consume (fire-and-forget)
+async function monitorRunwayStatus(baseUrl, apiKey, runwaySessionId, log) {
+  for (let i = 0; i < 10; i++) {
+    await sleep(5000);
+    try {
+      const s = await runwayFetch(baseUrl, apiKey, `/v1/realtime_sessions/${runwaySessionId}`);
+      log(`[runway-monitor] Status: ${s.status}${s.failure ? " failure=" + s.failure : ""}`);
+      if (s.status === "RUNNING" || s.status === "COMPLETED" || s.status === "FAILED" || s.status === "CANCELLED") {
+        break;
+      }
+    } catch (err) {
+      log(`[runway-monitor] Error: ${err.message}`);
+      break;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Session pipeline
 // ---------------------------------------------------------------------------
 
@@ -605,6 +623,9 @@ async function runSessionPipeline(
       log(`Recall bot created: ${bot.id}`);
       session.status = "active";
       log("Character is live in the meeting!");
+
+      // Monitor Runway session status to verify avatar is RUNNING
+      monitorRunwayStatus(baseUrl, apiKey, created.id, log);
     } else {
       // Direct mode (daily/vdoninja): LiveKit creds ready, client handles the rest
       session.status = "active";
