@@ -56,7 +56,7 @@
 <video id="avatar-video" autoplay playsinline muted></video>
 <canvas id="meeting-canvas" width="640" height="360"></canvas>
 
-<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2.17.0/dist/livekit-client.umd.js"></script>
 <script>
 if (typeof LivekitClient === "undefined") {
   document.getElementById("status-text").textContent = "LiveKit SDK failed to load";
@@ -216,8 +216,8 @@ async function start() {
   // 2. Connect to LiveKit room
   setStatus("Connecting to avatar...");
   const room = new Room({
-    adaptiveStream: false,
-    dynacast: false,
+    adaptiveStream: true,
+    dynacast: true,
   });
 
   room.on(RoomEvent.ParticipantConnected, (participant) => {
